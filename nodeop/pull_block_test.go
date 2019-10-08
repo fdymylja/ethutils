@@ -34,3 +34,19 @@ func TestDownloadBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDownloadRangeByNumberRange(t *testing.T) {
+	c := testEthClient()
+	var start uint64 = 6530000
+	var downloadNumb uint64 = 1000
+	blocks, err := DownloadBlocksByRange(context.Background(), c, start, start+downloadNumb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, block := range blocks {
+		if block.Number().Uint64() != start+uint64(i) {
+			t.Fatalf("block number mismatch: expected: %d got: %d", block.Number().Uint64(), start+uint64(i))
+		}
+		t.Log(block.NumberU64())
+	}
+}
