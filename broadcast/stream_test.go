@@ -11,7 +11,7 @@ import (
 
 // ExampleStream streams transaction from ropsten network, default options used
 func ExampleNewStreamDefault() {
-	// init streamer
+	// init Streamer
 	streamer := NewStreamDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
 	// connect it
 	err := streamer.Connect()
@@ -71,7 +71,7 @@ func TestStream_Header(t *testing.T) {
 
 func TestStream_Transaction(t *testing.T) {
 	s := NewStreamDefault("")
-	s.options.StreamBlocks = false
+	s.options.StreamHeaders = false
 	testMockStream(s, t)
 	select {
 	case tx := <-s.Transaction():
@@ -81,7 +81,7 @@ func TestStream_Transaction(t *testing.T) {
 
 func TestStream_Err(t *testing.T) {
 	s := NewStreamDefault("")
-	s.options.StreamBlocks = false
+	s.options.StreamHeaders = false
 	s.options.StreamTransactions = true
 	go s.listenBlockHeaders(nil, mocks.NewErrorSubscription(t, nil))
 	// inject an error
@@ -98,7 +98,7 @@ func TestStream_downloadBlock(t *testing.T) {
 		MaxRetries:         retries,
 		RetryWait:          1 * time.Second,
 		WaitAfterHeader:    0,
-		StreamBlocks:       false,
+		StreamHeaders:      false,
 		StreamTransactions: false,
 	})
 	err := s.Connect()

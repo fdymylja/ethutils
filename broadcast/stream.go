@@ -6,11 +6,10 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/fdymylja/ethutils"
 	"github.com/fdymylja/ethutils/errors"
+	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/nodeop"
 	"github.com/fdymylja/utils"
-	"log"
 	"sync"
 	"time"
 )
@@ -32,18 +31,8 @@ var DefaultStreamOptions = &StreamOptions{
 	MaxRetries:         50,
 	RetryWait:          5 * time.Second,
 	WaitAfterHeader:    5 * time.Second,
-	StreamBlocks:       true,
+	StreamHeaders:      true,
 	StreamTransactions: true,
-}
-
-// TxWithBlock represents the data structure forwarded by Stream on incoming transaction
-type TxWithBlock struct {
-	// Transaction is the transaction
-	Transaction *types.Transaction
-	// BlockNumber is the block number the tx was included in
-	BlockNumber uint64
-	// Timestamp is the timestamp of the block
-	Timestamp uint64
 }
 
 // StreamOptions represents the parameters used
@@ -56,13 +45,15 @@ type StreamOptions struct {
 	RetryWait time.Duration
 	// WaitAfterHeader is how long the client waits before querying block contents
 	WaitAfterHeader time.Duration
-	// StreamBlocks is used to define if headers should be forwarded to the parent
+	// StreamBlocks is used to define if blocks should be forwarded to the parent
 	StreamBlocks bool
+	// StreamHeaders is used to define if headers should be forwarded to the parent
+	StreamHeaders bool
 	// StreamTransactions is used to define if transactions forwarded to the parent
 	StreamTransactions bool
 }
 
-// NewStreamDefault creates a streamer instance with default options
+// NewStreamDefault creates a Streamer instance with default options
 func NewStreamDefault(endpoint string) *Stream {
 	return NewStream(endpoint, DefaultStreamOptions)
 }
@@ -74,7 +65,8 @@ func NewStream(endpoint string, options *StreamOptions) *Stream {
 		options:      options,
 		lastBlock:    0,
 		ethClient:    nil,
-		transactions: make(chan *TxWithBlock),
+		blocks:       make(chan *types.Block),
+		transactions: make(chan *interfaces.TxWithBlock),
 		headers:      make(chan *types.Header),
 		closed:       make(chan struct{}),
 		shutdown:     make(chan struct{}),
@@ -85,19 +77,20 @@ func NewStream(endpoint string, options *StreamOptions) *Stream {
 
 // Stream streams transactions and or block headers coming from the ethereum blockchain
 type Stream struct {
-	endpoint     string             // endpoint is where the ethereum client connects to, must support wss connections
-	options      *StreamOptions     // options is the streamer options
-	lastBlock    uint64             // the last block queried
-	ethClient    ethutils.Node      // ethClient is the client connected to an ethereum node
-	transactions chan *TxWithBlock  // transactions is the channel used to forward transactions to the parent
-	headers      chan *types.Header // headers is the channel used to forward headers to the parent
-	shutdown     chan struct{}      // shutdown is used to close the streamer
-	errs         chan error         // errs is used to forward errors coming from the streamer
-	shutdownOnce *sync.Once         // shutdownOnce guarantees that shutdown is only done once
-	closed       chan struct{}      // closed sends a signal to Close() caller that close operations are done
+	endpoint     string                       // endpoint is where the ethereum client connects to, must support wss connections
+	options      *StreamOptions               // options is the Streamer options
+	lastBlock    uint64                       // the last block queried
+	ethClient    interfaces.Node              // ethClient is the client connected to an ethereum node
+	blocks       chan *types.Block            // blocks is the channel used to forward blocks to the parent
+	transactions chan *interfaces.TxWithBlock // transactions is the channel used to forward transactions to the parent
+	headers      chan *types.Header           // headers is the channel used to forward headers to the parent
+	shutdown     chan struct{}                // shutdown is used to close the Streamer
+	errs         chan error                   // errs is used to forward errors coming from the Streamer
+	shutdownOnce *sync.Once                   // shutdownOnce guarantees that shutdown is only done once
+	closed       chan struct{}                // closed sends a signal to Close() caller that close operations are done
 }
 
-// Connect runs the streamer
+// Connect runs the Streamer
 func (s *Stream) Connect() (err error) {
 	defer utils.WrapErrorP(&err)
 
@@ -156,17 +149,18 @@ func (s *Stream) listenBlockHeaders(headers <-chan *types.Header, sub ethereum.S
 // onHeader handles operations when a new header comes from the ethereum network
 func (s *Stream) onHeader(header *types.Header) {
 	// send header if required
-	if s.options.StreamBlocks {
+	if s.options.StreamHeaders {
 		select {
 		case <-s.shutdown:
 			return
 		case s.headers <- header:
 		}
 	}
-	// pull transactions from block if required
-	if !s.options.StreamTransactions {
+	// if no stream tx and block is required then just return and forward header
+	if !(s.options.StreamTransactions || s.options.StreamBlocks) {
 		return
 	}
+	// pull block
 	block, err := s.downloadBlock(header)
 	if err != nil {
 		// wrap error into download block error
@@ -177,12 +171,22 @@ func (s *Stream) onHeader(header *types.Header) {
 		s.sendError(err)
 		return
 	}
-	// forward transactions to listener
-	for _, tx := range block.Transactions() {
+	// forward blocks
+	if s.options.StreamBlocks {
 		select {
-		case s.transactions <- &TxWithBlock{Transaction: tx, BlockNumber: block.NumberU64(), Timestamp: block.Time()}:
 		case <-s.shutdown:
 			return
+		case s.blocks <- block:
+		}
+	}
+	// forward transactions to listener
+	if s.options.StreamTransactions {
+		for _, tx := range block.Transactions() {
+			select {
+			case s.transactions <- &interfaces.TxWithBlock{Transaction: tx, BlockNumber: block.NumberU64(), Timestamp: block.Time()}:
+			case <-s.shutdown:
+				return
+			}
 		}
 	}
 }
@@ -195,8 +199,7 @@ func (s *Stream) downloadBlock(header *types.Header) (block *types.Block, err er
 	time.Sleep(s.options.WaitAfterHeader)
 	var lastError error
 	for tryN := 0; ; {
-		log.Printf("try n: %d", tryN)
-		// check if during retries the streamer was shutdown
+		// check if during retries the Streamer was shutdown
 		select {
 		case <-s.shutdown:
 			return nil, errors.ErrShutdown
@@ -244,23 +247,28 @@ func (s *Stream) sendError(err error) {
 	}
 }
 
-// Err returns a channel that forwards errors coming from the streamer, per ethclient, only one error is forwarded
+// Err returns a channel that forwards errors coming from the Streamer, per ethclient, only one error is forwarded
 // to this channel
 func (s *Stream) Err() <-chan error {
 	return s.errs
 }
 
-// Block returns a channel that forwards block headers
+// Block returns the channel used to forward blocks
+func (s *Stream) Block() <-chan *types.Block {
+	return s.blocks
+}
+
+// Header returns a channel that forwards block headers
 func (s *Stream) Header() <-chan *types.Header {
 	return s.headers
 }
 
 // Transaction returns a channel that forwards incoming transactions
-func (s *Stream) Transaction() <-chan *TxWithBlock {
+func (s *Stream) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.transactions
 }
 
-// Close closes the streamer
+// Close closes the Streamer
 func (s *Stream) Close() error {
 	// shutdown once
 	s.shutdownOnce.Do(func() {

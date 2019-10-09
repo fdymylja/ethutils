@@ -4,20 +4,20 @@ import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/fdymylja/ethutils"
+	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/utils"
 	"math/big"
 )
 
 // DownloadBlock downloads a block given an EthClient and the block hash
-func DownloadBlock(ctx context.Context, client ethutils.BlockPuller, hash common.Hash) (block *types.Block, err error) {
+func DownloadBlock(ctx context.Context, client interfaces.BlockPuller, hash common.Hash) (block *types.Block, err error) {
 	defer utils.WrapErrorP(&err)
 	block, err = client.BlockByHash(ctx, hash)
 	return
 }
 
 // DownloadBlockByNumber downloads a block given an EthClient and blocks number
-func DownloadBlockByNumber(ctx context.Context, client ethutils.BlockPuller, blockNumber uint64) (block *types.Block, err error) {
+func DownloadBlockByNumber(ctx context.Context, client interfaces.BlockPuller, blockNumber uint64) (block *types.Block, err error) {
 	defer utils.WrapErrorP(&err)
 	bn := new(big.Int).SetUint64(blockNumber)
 	block, err = client.BlockByNumber(ctx, bn)
@@ -25,7 +25,7 @@ func DownloadBlockByNumber(ctx context.Context, client ethutils.BlockPuller, blo
 }
 
 // DownloadBlocksByRange downloads blocks from a BlockPuller given a starting and an ending block number
-func DownloadBlocksByRange(ctx context.Context, client ethutils.BlockPuller, blockStart, blockFinish uint64) (blocks []*types.Block, err error) {
+func DownloadBlocksByRange(ctx context.Context, client interfaces.BlockPuller, blockStart, blockFinish uint64) (blocks []*types.Block, err error) {
 	defer utils.WrapErrorP(&err)
 	if blockStart > blockFinish {
 		panic("starting block bigger than finishing block")

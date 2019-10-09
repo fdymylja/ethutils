@@ -6,17 +6,15 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/fdymylja/ethutils"
+	"github.com/fdymylja/ethutils/interfaces"
 	"math/big"
 	"sync"
 	"testing"
 	"time"
 )
 
-type BlockLoader func() ([]*types.Block, error)
-
 type EthereumTester interface {
-	Node() ethutils.Node
+	Node() interfaces.Node
 	Stop()                                                       // Stop stops the ethereum tester
 	SetBlockTime(duration time.Duration)                         // SetBlockTime allows to define a custom interval time for block production
 	SetBlockLoader(f BlockLoader)                                // SetBlockLoader sets a custom BlockLoader function
@@ -70,7 +68,7 @@ func (t *ethereumNode) StartHeaders() (<-chan *types.Header, ethereum.Subscripti
 }
 
 // Node returns a mock instance of a Node interface
-func (t *ethereumNode) Node() ethutils.Node {
+func (t *ethereumNode) Node() interfaces.Node {
 	return t
 }
 
@@ -93,6 +91,7 @@ func (t *ethereumNode) SetBlockLoader(f BlockLoader) {
 	t.blockLoader = f
 }
 
+// TODO make this standard between streamer and ethereumNode
 // loadBlocks loads blocks from files saved in the form of blockNumber.block TODO: use channel for dynamic block loading
 func (t *ethereumNode) loadBlocks(f BlockLoader) {
 	blocks, err := f()
