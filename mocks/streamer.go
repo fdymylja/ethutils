@@ -120,7 +120,7 @@ func (s *Streamer) Header() <-chan *types.Header {
 	return s.chanHeaders
 }
 
-// Transaction is a function to implement interfaces.Streamer
+// TransactionIncluded is a function to implement interfaces.Streamer
 func (s *Streamer) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.chanTx
 }

@@ -179,7 +179,7 @@ func (s *Stream) onHeader(header *types.Header) {
 		case s.blocks <- block:
 		}
 	}
-	// forward transactions to listener
+	// forward transactions to txIncluded
 	if s.options.StreamTransactions {
 		for _, tx := range block.Transactions() {
 			select {
@@ -263,7 +263,7 @@ func (s *Stream) Header() <-chan *types.Header {
 	return s.headers
 }
 
-// Transaction returns a channel that forwards incoming transactions
+// TransactionIncluded returns a channel that forwards incoming transactions
 func (s *Stream) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.transactions
 }

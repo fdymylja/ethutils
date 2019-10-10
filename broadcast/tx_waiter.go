@@ -1,15 +1,18 @@
 package broadcast
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/status"
+	"github.com/status-im/keycard-go/hexutils"
 	"sync"
 )
 
 type txProducer interface {
 	shuttingDown() <-chan struct{} // shuttingDown signals when the tx producer is shuttingDown
-	removeTxAwaiter(w *TxWaiter)   // removeTxAwaiter removes TxWaiter from the waiters list
+	removeTxWaiter(w *TxWaiter)    // removeTxWaiter removes TxWaiter from the waiters list
 
 }
 
@@ -21,9 +24,9 @@ type TxWaiter struct {
 	stopOnce   *sync.Once                   // stopOnce makes sure the TxWaiter is stopped only once
 	errs       chan error                   // errs is used to signal the caller that there was some error
 	resp       chan *interfaces.TxWithBlock // resp is used to forward transaction information
-	listener   chan *interfaces.TxWithBlock // listener is the channel used to forward information to the caller
+	txIncluded chan *interfaces.TxWithBlock // txIncluded is the channel used to forward information to the caller
 
-	txProducer txProducer
+	txProducer txProducer // txProducer is the parent instance that forwards
 }
 
 // NewTxWaiter creates a TxWaiter instance and starts the loop that waits for the transaction to be included
@@ -36,7 +39,7 @@ func NewTxWaiter(hash common.Hash, producer txProducer) *TxWaiter {
 		waiterDone: make(chan struct{}),
 		errs:       make(chan error, 1),
 		resp:       make(chan *interfaces.TxWithBlock, 1),
-		listener:   make(chan *interfaces.TxWithBlock, 1),
+		txIncluded: make(chan *interfaces.TxWithBlock, 1),
 	}
 	go waiter.wait()
 	return waiter
@@ -50,15 +53,53 @@ func (w *TxWaiter) wait() {
 		w.errs <- status.ErrShutdown
 	// case the instance is stopped by the instance waiting for a transaction
 	case <-w.stop:
-		w.txProducer.removeTxAwaiter(w) // remove the txWaiter instance from the list of waiters
+		w.txProducer.removeTxWaiter(w) // remove the txWaiter instance from the list of waiters
 		w.done()
-	// case transaction is found
+	// case transaction is found, forward it to caller
 	case tx := <-w.resp:
-		w.listener <- tx
+		w.txIncluded <- tx
 	}
 }
 
 // shuttingDown is called when Stop is called and signals the parent user that the TxWaiter has exited
 func (w *TxWaiter) done() {
 	close(w.waiterDone)
+}
+
+// sendResponse should only be used by the txProducer to signal that the transaction has been included
+func (w *TxWaiter) sendResponse(tx *interfaces.TxWithBlock) {
+	// check if the hash we got matches the hash, TODO: think if maybe here we can avoid a panic and just forward an error
+	if !bytes.Equal(w.hash[:], tx.Transaction.Hash().Bytes()) {
+		panic(fmt.Sprintf("Tx hash expected: %s, got: %s", hexutils.BytesToHex(w.hash[:]), hexutils.BytesToHex(tx.Transaction.Hash().Bytes())))
+	}
+	w.resp <- tx
+}
+
+// TransactionIncluded forwards the transaction to the listener once it is included in a block
+func (w *TxWaiter) TransactionIncluded() <-chan *interfaces.TxWithBlock {
+	return w.txIncluded
+}
+
+// Stop stops the waiter, it should be always called when there is not anymore interest in waiting a transaction
+func (w *TxWaiter) Stop() {
+	w.stopOnce.Do(func() {
+		close(w.stop)
+	})
+}
+
+// Done sends a signal once the TxWaiter has exited, this is sent only after Stop is called to communicate that the
+// txProducer has removed the waiter
+func (w *TxWaiter) Done() <-chan struct{} {
+	return w.waiterDone
+}
+
+// Err is used to communicate errors to the listener of TxWaiter, generally the errors are status.ErrShutdown
+// when the txProducer is closed, only one error is forwarded
+func (w *TxWaiter) Err() <-chan error {
+	return w.errs
+}
+
+// Hash returns the hash of the transaction TxWaiter is waiting
+func (w *TxWaiter) Hash() common.Hash {
+	return w.hash
 }
