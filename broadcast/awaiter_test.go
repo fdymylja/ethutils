@@ -2,8 +2,10 @@ package broadcast
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/fdymylja/ethutils/conversions"
 	"github.com/fdymylja/ethutils/mocks"
+	"github.com/fdymylja/ethutils/status"
 	"log"
 	"testing"
 	"time"
@@ -29,18 +31,18 @@ func ExampleAwaiter() {
 			return
 		}
 	}()
-	txID := "0x...." // put a transaction you are waiting for
+	txID := "0x...." // put a recv you are waiting for
 	// convert tx id to hash
 	txHash, err := conversions.HexToHash(txID)
 	if err != nil {
 		panic(err)
 	}
 	// wait for tx
-	resp, err := awaiter.Wait(txHash)
+	resp := awaiter.Wait(txHash)
 	if err != nil {
 		panic(err)
 	}
-	tx := <-resp
+	tx := resp.Wait()
 	log.Printf("txID: %s, block: %d, timestamp: %d", tx.Transaction.Hash().String(), tx.BlockNumber, tx.Timestamp)
 	close(exit)
 }
@@ -65,40 +67,76 @@ func TestAwaiter_Wait(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := mockStream(t)
+	defer s.Stop()
 	a := NewAwaiter(s)
 	defer a.Close()
 	s.Start()
 	defer s.Stop()
-	resp, err := a.Wait(txHash)
+	resp := a.Wait(txHash)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%#v", <-resp)
+	t.Logf("%#v", resp.Wait())
 	return
 }
 
+// TestAwaiter_Wait2 covers the case in which Awaiter stops before finding the transaction we're looking for
 func TestAwaiter_Wait2(t *testing.T) {
-	//
 	tx := "0xf6e1096310e957ab868d3e7d38c44e4da8762eb903bf591daf58c8f20537a9a8"
 	txHash, err := conversions.HexToHash(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := mockStream(t)
+	defer s.Stop()
 	a := NewAwaiter(s)
 	defer a.Close()
-	s.Start()
-	defer s.Stop()
-	resp, err := a.Wait(txHash)
+	resp := a.Wait(txHash)
 	if err != nil {
 		t.Fatal(err)
 	}
 	go func() {
-		time.After(1 * time.Second)
+		time.Sleep(1 * time.Second)
 		a.Close()
 	}()
-	k, ok := <-resp
-	t.Log("exited", k, ok)
+	select {
+	case err := <-resp.Err():
+		if !errors.Is(err, status.ErrShutdown) {
+			t.Fatalf("wrong code path, it should exit with status.ErrClosed. Got: %s", err)
+		}
+	case k, ok := <-resp.Transaction():
+		t.Fatal(k, ok)
+	case <-time.After(10 * time.Second):
+
+	}
+}
+
+// TestAwaiter_Wait3 covers the case in which the request is made but is not forwarded before Awaiter exits
+func TestAwaiter_Wait3(t *testing.T) {
+	s := mockStream(t)
+	defer s.Stop()
+	a := NewAwaiter(s)
+	// block requests forever
+	a.waitRequests = nil
+	exit := make(chan struct{})
+	errs := make(chan error, 1)
+	go func() {
+		resp := a.Wait(common.Hash{})
+		errc := resp.Err()
+		err := <-errc
+		if !errors.Is(err, status.ErrClosed) {
+			errs <- errors.New("error is not ErrClosed")
+		}
+		close(exit)
+	}()
+	time.Sleep(1 * time.Second)
+	a.Close()
+	select {
+	case <-exit:
+		// success
+	case err := <-errs:
+		t.Fatal(err)
+	}
 }
 
 func TestAwaiter_Close(t *testing.T) {
@@ -121,4 +159,21 @@ func TestAwaiter_Err(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Fatal("no error received")
 	}
+}
+
+// TestAwaiter_onError covers the case in which the error sent to the parent is dropped before being forwarded
+func TestAwaiter_onError(t *testing.T) {
+	s := mockStream(t)
+	defer s.Stop()
+	a := NewAwaiter(s)
+	// block requests forever
+	a.errs = nil
+	exit := make(chan struct{})
+	go func() {
+		a.onError(nil)
+		close(exit)
+	}()
+	time.Sleep(1 * time.Second)
+	a.Close()
+	<-exit
 }

@@ -3,30 +3,54 @@ package broadcast
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/fdymylja/ethutils/errors"
 	"github.com/fdymylja/ethutils/interfaces"
+	"github.com/fdymylja/ethutils/status"
 	"sync"
 )
 
-type waitRequest struct {
+type txWaitRequest struct {
 	hash common.Hash
 	resp chan *interfaces.TxWithBlock
 }
 
-type waitResponse struct {
+// TransactionWaiter defines a type that allows to perform operations while waiting recv
+type TransactionWaiter struct {
+	once        *sync.Once
+	request     *txWaitRequest
 	stopWaiting chan struct{}
-	response    chan *interfaces.TxWithBlock
+	send        chan *interfaces.TxWithBlock
 	errs        chan error
+}
+
+// Wait blocks until the recv has arrived
+func (t *TransactionWaiter) Wait() *interfaces.TxWithBlock {
+	return <-t.send
+}
+
+func (t *TransactionWaiter) Transaction() <-chan *interfaces.TxWithBlock {
+	return t.send
+}
+
+func (t *TransactionWaiter) Err() <-chan error {
+	return t.errs
+}
+
+// Stop stops the waiter, once stopping
+func (t *TransactionWaiter) Stop() {
+	t.once.Do(func() {
+		close(t.stopWaiting)
+	})
 }
 
 // Awaiter waits for blocks and/or transactions
 type Awaiter struct {
 	stream interfaces.Streamer
 
-	txWaiters map[common.Hash][]chan *interfaces.TxWithBlock
+	txWaiters map[common.Hash]map[chan *interfaces.TxWithBlock]struct{}
 	// request channels
-	waitRequests chan *waitRequest
-
+	waitRequests chan *txWaitRequest
+	//
+	txStopWaiting chan *txWaitRequest
 	// external
 	errs chan error
 	// synchronization
@@ -35,11 +59,12 @@ type Awaiter struct {
 	closed       chan struct{}
 }
 
+// NewAwaiter builds an Awaiter instance given a streamer
 func NewAwaiter(streamer interfaces.Streamer) *Awaiter {
 	a := &Awaiter{
 		stream:       streamer,
-		txWaiters:    make(map[common.Hash][]chan *interfaces.TxWithBlock),
-		waitRequests: make(chan *waitRequest),
+		txWaiters:    make(map[common.Hash]map[chan *interfaces.TxWithBlock]struct{}),
+		waitRequests: make(chan *txWaitRequest),
 		errs:         make(chan error),
 		shutdown:     make(chan struct{}),
 		shutdownOnce: new(sync.Once),
@@ -49,7 +74,7 @@ func NewAwaiter(streamer interfaces.Streamer) *Awaiter {
 	return a
 }
 
-// loop routes events coming from channel and routes them to their respective handlers
+// wait routes events coming from channel and routes them to their respective handlers
 func (a *Awaiter) loop() {
 	for {
 		select {
@@ -66,6 +91,9 @@ func (a *Awaiter) loop() {
 			a.onHeader(header)
 		case req := <-a.waitRequests:
 			a.newWaitRequest(req)
+		case c := <-a.txStopWaiting:
+			a.stopWaitingTransaction(c)
+
 		}
 	}
 }
@@ -78,19 +106,30 @@ func (a *Awaiter) onHeader(header *types.Header) {
 
 }
 
+//
+func (a *Awaiter) stopWaitingTransaction(remove *txWaitRequest) {
+	// check if notifier is inside otherwise panic
+	_, ok := a.txWaiters[remove.hash][remove.resp]
+	if !ok {
+		panic("request to remove was not found")
+	}
+	//
+	delete(a.txWaiters[remove.hash], remove.resp)
+}
+
 // onTransaction is called when a new tx arrives
 func (a *Awaiter) onTransaction(tx *interfaces.TxWithBlock) {
 	// TODO add block reorg handler
 	// get tx hash
 	hash := tx.Transaction.Hash()
-	// see if tx hash is in the list of transaction listeners
+	// see if tx hash is in the list of recv listeners
 	listeners, ok := a.txWaiters[hash]
 	// case no one is listening return
 	if !ok {
 		return
 	}
-	// loop through listeners and forward the transactions to their listening channels
-	for _, listener := range listeners {
+	// wait through listeners and forward the transactions to their listening channels
+	for listener := range listeners {
 		listener <- tx
 		close(listener)
 	}
@@ -99,28 +138,62 @@ func (a *Awaiter) onTransaction(tx *interfaces.TxWithBlock) {
 }
 
 // newWaitRequests handles new notify for transactions request
-func (a *Awaiter) newWaitRequest(req *waitRequest) {
+func (a *Awaiter) newWaitRequest(req *txWaitRequest) {
+	// check if map is nil
+	if a.txWaiters[req.hash] == nil {
+		a.txWaiters[req.hash] = make(map[chan *interfaces.TxWithBlock]struct{})
+	}
 	// append new request to list
-	a.txWaiters[req.hash] = append(a.txWaiters[req.hash], req.resp)
+	a.txWaiters[req.hash][req.resp] = struct{}{}
 }
 
-func (a *Awaiter) Wait(tx common.Hash) (<-chan *interfaces.TxWithBlock, error) {
-	// make response channel
-	resp := make(chan *interfaces.TxWithBlock, 1)
-	// make request
-	req := &waitRequest{
+// Wait takes a hash and waits for it to be broadcast on the ethereum network
+func (a *Awaiter) Wait(tx common.Hash) *TransactionWaiter {
+
+	// create request
+	req := &txWaitRequest{
 		hash: tx,
-		resp: resp,
+		resp: make(chan *interfaces.TxWithBlock, 1),
 	}
-	// try to send request
-	select {
-	case a.waitRequests <- req:
-	case <-a.shutdown:
-		err := errors.ErrShutdown
-		return nil, err
+	// create response and add request
+	waitResp := &TransactionWaiter{
+		request:     req,
+		stopWaiting: make(chan struct{}),
+		send:        make(chan *interfaces.TxWithBlock, 1),
+		errs:        make(chan error, 1),
+		once:        new(sync.Once),
 	}
+	// send request
+	go a.waitResponse(waitResp)
 	// return
-	return resp, nil
+	return waitResp
+}
+
+// waitResponse sends a wait recv request
+func (a *Awaiter) waitResponse(waiter *TransactionWaiter) {
+	// send request
+	select {
+	case <-a.shutdown: // case shutdown send error and return
+		waiter.errs <- status.ErrClosed
+		return
+	case a.waitRequests <- waiter.request:
+	}
+	// wait response
+	select {
+	case <-a.shutdown:
+		// instance was shutdown
+		waiter.errs <- status.ErrShutdown
+	case <-waiter.stopWaiting:
+		// case the user wants to stop waiting TODO
+		a.txStopWaiting <- waiter.request
+	case tx, ok := <-waiter.request.resp:
+		if !ok { // case channel was closed it means we're in for a shutdown
+			waiter.errs <- status.ErrShutdown
+			return
+		}
+		// send response to user
+		waiter.send <- tx
+	}
 }
 
 func (a *Awaiter) cleanup() {
@@ -129,14 +202,16 @@ func (a *Awaiter) cleanup() {
 	close(a.closed)
 }
 
+// removeWaiters removes notification channels
 func (a *Awaiter) removeWaiters() {
 	for _, waiters := range a.txWaiters {
-		for _, waiter := range waiters {
+		for waiter := range waiters {
 			close(waiter)
 		}
 	}
 }
 
+// onError forwards errors to parent and drops them in case the instance is shutdown
 func (a *Awaiter) onError(err error) {
 	select {
 	case <-a.shutdown: // dropped error
@@ -144,6 +219,7 @@ func (a *Awaiter) onError(err error) {
 	}
 }
 
+// Close shuts down the Awaiter instance, the operation will be performed only once, subsequent calls will not make changes
 func (a *Awaiter) Close() error {
 	a.shutdownOnce.Do(func() {
 		close(a.shutdown)
@@ -152,6 +228,8 @@ func (a *Awaiter) Close() error {
 	return nil
 }
 
+// Err returns a channel that forwards errors coming from the Awaiter instance, there should always be a goroutine listening
+// for those errors as those error forwards are blocking
 func (a *Awaiter) Err() <-chan error {
 	return a.errs
 }

@@ -1,5 +1,6 @@
-// interfaces.go lists all the interfaces used by the package
 package interfaces
+
+// interfaces.go lists all the interfaces used by the package
 
 import (
 	"context"

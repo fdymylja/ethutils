@@ -3,6 +3,7 @@ package interfaces
 import "github.com/ethereum/go-ethereum/core/types"
 
 // TODO move this type back to awaiter after turning it into an interface
+
 // TxWithBlock represents the data structure forwarded by Stream on incoming transaction
 type TxWithBlock struct {
 	// Transaction is the transaction

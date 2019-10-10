@@ -2,6 +2,7 @@ package nodeop
 
 import (
 	"context"
+	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
@@ -28,7 +29,7 @@ func DownloadBlockByNumber(ctx context.Context, client interfaces.BlockPuller, b
 func DownloadBlocksByRange(ctx context.Context, client interfaces.BlockPuller, blockStart, blockFinish uint64) (blocks []*types.Block, err error) {
 	defer utils.WrapErrorP(&err)
 	if blockStart > blockFinish {
-		panic("starting block bigger than finishing block")
+		return nil, errors.New("starting block bigger than finishing block")
 	}
 	blocks = make([]*types.Block, blockFinish-blockStart+1)
 	for i := 0; blockStart <= blockFinish; blockStart++ {

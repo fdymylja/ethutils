@@ -37,8 +37,8 @@ func TestDownloadBlock(t *testing.T) {
 
 func TestDownloadRangeByNumberRange(t *testing.T) {
 	c := testEthClient()
-	var start uint64 = 6530000
-	var downloadNumb uint64 = 1000
+	var start uint64 = 0
+	var downloadNumb uint64 = 10
 	blocks, err := DownloadBlocksByRange(context.Background(), c, start, start+downloadNumb)
 	if err != nil {
 		t.Fatal(err)

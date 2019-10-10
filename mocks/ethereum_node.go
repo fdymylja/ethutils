@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// EthereumTester implements behaviours of an ethereum subscription
 type EthereumTester interface {
 	Node() interfaces.Node
 	Stop()                                                       // Stop stops the ethereum tester
@@ -37,10 +38,10 @@ type ethereumNode struct {
 	subErrs      chan error         // subErrs is the channel used to send error messages
 	shutdown     chan struct{}      // shutdown signals finished to goroutines
 	shutdownOnce *sync.Once         // shutdownOnce makes sure shutdown is done only once
-	sendOps      *sync.WaitGroup    // sendOps synchronizes chan send operations related with shutdown
 	closed       chan struct{}      // closed signals closed to Stop caller
 }
 
+// NewEthereumNode mocks the functionality of an ethereum node
 func NewEthereumNode(tb testing.TB) EthereumTester {
 	return &ethereumNode{
 		blockLoader:   ropstenLoadBlocks(6532150, 6532170),
@@ -55,7 +56,6 @@ func NewEthereumNode(tb testing.TB) EthereumTester {
 		shutdown:      make(chan struct{}),
 		shutdownOnce:  &sync.Once{},
 		headers:       make(chan *types.Header),
-		sendOps:       &sync.WaitGroup{},
 		closed:        make(chan struct{}),
 	}
 }
@@ -77,7 +77,6 @@ func (t *ethereumNode) Stop() {
 	t.shutdownOnce.Do(func() {
 		t.test.Log("ethereumNode: Stop: shutdown recv")
 		close(t.shutdown)
-		t.sendOps.Wait()
 		close(t.closed)
 	})
 	<-t.closed
@@ -111,16 +110,13 @@ func (t *ethereumNode) loadBlocks(f BlockLoader) {
 // produceHeaders produces headers
 func (t *ethereumNode) produceHeaders() {
 	for {
-		t.sendOps.Add(1)
 		select {
 		case <-t.shutdown:
 			t.test.Log("ethereumNode: produceHeaders: shutdown recv")
-			t.sendOps.Done()
 			return
 		case <-time.After(t.blockTime):
 			// generate a block
 			t.headers <- t.generateHeaders()
-			t.sendOps.Done()
 		}
 
 	}
@@ -135,7 +131,7 @@ func (t *ethereumNode) generateHeaders() *types.Header {
 	}
 	header := t.blocks[t.currBlock].Header()
 	// increase current block
-	t.currBlock += 1
+	t.currBlock++
 	return header
 }
 

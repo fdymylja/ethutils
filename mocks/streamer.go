@@ -3,11 +3,13 @@ package mocks
 import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
+	"sync"
 	"testing"
 	"time"
 )
 
 // TODO make instance concurrency safe and don't allow anything to start if blocks are not loaded
+
 // Streamer implements a mock ethutils.Streamer used for testing
 type Streamer struct {
 	test        testing.TB
@@ -22,22 +24,25 @@ type Streamer struct {
 	chanHeaders chan *types.Header
 	errs        chan error
 
-	shutdown chan struct{}
+	shutdown     chan struct{}
+	shutdownOnce *sync.Once
 }
 
+// NewStreamer builds a Streamer instance
 func NewStreamer(t testing.TB) *Streamer {
 	return &Streamer{
-		test:        t,
-		blockLoader: ropstenLoadBlocks(6532150, 6532170),
-		blocks:      nil,
-		blockTime:   15 * time.Second,
-		currBlock:   0,
-		maxBlocks:   0,
-		chanBlocks:  make(chan *types.Block),
-		chanTx:      make(chan *interfaces.TxWithBlock),
-		chanHeaders: make(chan *types.Header),
-		errs:        make(chan error),
-		shutdown:    make(chan struct{}),
+		test:         t,
+		blockLoader:  ropstenLoadBlocks(6532150, 6532170),
+		blocks:       nil,
+		blockTime:    15 * time.Second,
+		currBlock:    0,
+		maxBlocks:    0,
+		chanBlocks:   make(chan *types.Block),
+		chanTx:       make(chan *interfaces.TxWithBlock),
+		chanHeaders:  make(chan *types.Header),
+		errs:         make(chan error),
+		shutdown:     make(chan struct{}),
+		shutdownOnce: new(sync.Once),
 	}
 }
 
@@ -76,14 +81,14 @@ func (s *Streamer) Start() {
 			// send block
 			select {
 			case <-s.shutdown:
-				s.test.Log("Streamer: loop stopped")
+				// s.test.Log("Streamer: loop stopped")
 				return
 			case s.chanBlocks <- block:
 			}
 			// send header
 			select {
 			case <-s.shutdown:
-				s.test.Log("Streamer: loop stopped")
+				// s.test.Log("Streamer: loop stopped")
 				return
 			case s.chanHeaders <- header:
 			}
@@ -100,7 +105,7 @@ func (s *Streamer) Start() {
 				}:
 				}
 			}
-			s.currBlock += 1
+			s.currBlock++
 		}
 	}()
 }
@@ -136,7 +141,7 @@ func (s *Streamer) InjectError(err error) {
 	go func() {
 		select {
 		case <-s.shutdown:
-			s.test.Log("exit before error recv")
+			// s.test.Log("exit before error recv") // race detector
 		case s.errs <- err:
 		}
 	}()
@@ -147,7 +152,7 @@ func (s *Streamer) InjectTransaction(tx *interfaces.TxWithBlock) {
 	go func() {
 		select {
 		case <-s.shutdown:
-			s.test.Log("exit before error recv")
+			// s.test.Log("exit before error recv") // race detector hates me
 		case s.chanTx <- tx:
 		}
 	}()
@@ -158,15 +163,17 @@ func (s *Streamer) InjectHeader(header *types.Header) {
 	go func() {
 		select {
 		case <-s.shutdown:
-			s.test.Log("exit before error recv")
+			// s.test.Log("exit before error recv") // race detector hates me
 		case s.chanHeaders <- header:
 		}
 	}()
 }
 
-// Stop stops the streamer
+// Stop stops the streamer, the operation will be execute only once, subsequent calls will not do anything
 func (s *Streamer) Stop() {
-	close(s.shutdown)
+	s.shutdownOnce.Do(func() {
+		close(s.shutdown)
+	})
 }
 
 func (s *Streamer) randomTx() *interfaces.TxWithBlock {

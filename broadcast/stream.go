@@ -6,9 +6,9 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/fdymylja/ethutils/errors"
 	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/nodeop"
+	"github.com/fdymylja/ethutils/status"
 	"github.com/fdymylja/utils"
 	"sync"
 	"time"
@@ -86,8 +86,8 @@ type Stream struct {
 	headers      chan *types.Header           // headers is the channel used to forward headers to the parent
 	shutdown     chan struct{}                // shutdown is used to close the Streamer
 	errs         chan error                   // errs is used to forward errors coming from the Streamer
-	shutdownOnce *sync.Once                   // shutdownOnce guarantees that shutdown is only done once
-	closed       chan struct{}                // closed sends a signal to Close() caller that close operations are done
+	shutdownOnce *sync.Once                   // shutdownOnce guarantees that shutdown is only shuttingDown once
+	closed       chan struct{}                // closed sends a signal to Close() caller that close operations are shuttingDown
 }
 
 // Connect runs the Streamer
@@ -119,7 +119,7 @@ func (s *Stream) listenBlockHeaders(headers <-chan *types.Header, sub ethereum.S
 	defer func() {
 		sub.Unsubscribe()
 	}()
-	// broadcast loop
+	// broadcast wait
 	subErr := sub.Err()
 	for {
 		select {
@@ -202,12 +202,12 @@ func (s *Stream) downloadBlock(header *types.Header) (block *types.Block, err er
 		// check if during retries the Streamer was shutdown
 		select {
 		case <-s.shutdown:
-			return nil, errors.ErrShutdown
+			return nil, status.ErrShutdown
 		default:
 		}
-		// loop breaks only if MaxRetries is bigger-equal than 0 and number of tries is bigger than MaxRetries
+		// wait breaks only if MaxRetries is bigger-equal than 0 and number of tries is bigger than MaxRetries
 		if s.options.MaxRetries != -1 && tryN >= s.options.MaxRetries { // max retries reached
-			return nil, &errors.ErrMaxRetriesReached{
+			return nil, &status.ErrMaxRetriesReached{
 				LastError: lastError,
 			}
 		}

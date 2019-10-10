@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// ExampleStream streams transaction from ropsten network, default options used
+// ExampleStream streams recv from ropsten network, default options used
 func ExampleNewStreamDefault() {
 	// init Streamer
 	streamer := NewStreamDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
