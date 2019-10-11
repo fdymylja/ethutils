@@ -17,6 +17,7 @@ type txProducer interface {
 }
 
 // TxWaiter is a type that waits for transactions to be included in an ethereum block, it uses a txProducer to receive
+// data regarding the transaction
 type TxWaiter struct {
 	hash       common.Hash                  // hash is the has of the transaction
 	waiterDone chan struct{}                // waiterDone signals the waiter is shuttingDown
@@ -45,7 +46,7 @@ func NewTxWaiter(hash common.Hash, producer txProducer) *TxWaiter {
 	return waiter
 }
 
-// wait waits for events regarding TxWaiter
+// wait waits for events regarding TxWaiter, only one event will pass through
 func (w *TxWaiter) wait() {
 	select {
 	// case the transaction producer is shuttingDown exit sending a shutdown error
@@ -54,15 +55,14 @@ func (w *TxWaiter) wait() {
 	// case the instance is stopped by the instance waiting for a transaction
 	case <-w.stop:
 		w.txProducer.removeTxWaiter(w) // remove the txWaiter instance from the list of waiters
-		w.done()
 	// case transaction is found, forward it to caller
 	case tx := <-w.resp:
 		w.txIncluded <- tx
 	}
 }
 
-// shuttingDown is called when Stop is called and signals the parent user that the TxWaiter has exited
-func (w *TxWaiter) done() {
+// waiterRemoved is called by Awaiter to signal that the waiter has been successfully removed
+func (w *TxWaiter) waiterRemoved() {
 	close(w.waiterDone)
 }
 

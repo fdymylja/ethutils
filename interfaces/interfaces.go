@@ -31,11 +31,11 @@ type TransactionPuller interface {
 	TransactionByHash(ctx context.Context, hash common.Hash) (tx *types.Transaction, isPending bool, err error)
 }
 
-// Streamer implements headers & transactions streaming coming from an ethereum node
+// Streamer implements blocks, headers and transactions streaming coming from an ethereum node
 type Streamer interface {
-	Block() <-chan *types.Block
-	Header() <-chan *types.Header
-	Transaction() <-chan *TxWithBlock
-	Err() <-chan error
-	Close() error
+	Block() <-chan *types.Block       // Block returns new blocks coming from the ethereum network
+	Header() <-chan *types.Header     // Header returns new headers coming from the ethereum network
+	Transaction() <-chan *TxWithBlock // Transaction streams new transactions coming from the ethereum network
+	Err() <-chan error                // Err returns errors coming from the underlying streaming client
+	Close() error                     // Close allows to turn the streamer off
 }

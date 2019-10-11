@@ -96,7 +96,6 @@ func (s *Streamer) Start() {
 			for _, tx := range txs {
 				select {
 				case <-s.shutdown:
-					s.test.Log("Stream: loop stopped")
 					return
 				case s.chanTx <- &interfaces.TxWithBlock{
 					Transaction: tx,
@@ -110,17 +109,17 @@ func (s *Streamer) Start() {
 	}()
 }
 
-// Block is a function to implement interfaces.Streamer
+// Block streams new headers coming from the ethereum network, it implements interfaces.Streamer
 func (s *Streamer) Block() <-chan *types.Block {
 	return s.chanBlocks
 }
 
-// Header is a function to implement interfaces.Streamer
+// Header streams new headers coming from the ethereum network,  it implements interfaces.Streamer
 func (s *Streamer) Header() <-chan *types.Header {
 	return s.chanHeaders
 }
 
-// TransactionIncluded is a function to implement interfaces.Streamer
+// Transaction streams new transactions coming from the ethereum network, it implements interfaces.Streamer
 func (s *Streamer) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.chanTx
 }

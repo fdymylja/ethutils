@@ -41,3 +41,16 @@ func DownloadBlocksByRange(ctx context.Context, client interfaces.BlockPuller, b
 	}
 	return
 }
+
+/*
+// DownloadBlocksByRangeConcurrently
+func DownloadBlocksByRangeConcurrently(ctx context.Context, client interfaces.BlockPuller, blockStart, blockFinish uint64, workers int) (resp <-chan *types.Block, errs chan error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resp = make(chan *types.Block)
+	for ; blockStart <= blockFinish; blockStart++ {
+
+	}
+	return
+}
+*/

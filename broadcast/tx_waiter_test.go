@@ -40,6 +40,7 @@ func (m *mockTxProducer) sendTx(tx common.Hash, target *TxWaiter) {
 }
 
 func (m mockTxProducer) removeTxWaiter(w *TxWaiter) {
+	w.waiterRemoved()
 	close(m.waiterStopped)
 }
 
@@ -87,6 +88,7 @@ func TestTxWaiter_TransactionIncluded(t *testing.T) {
 
 // Cover the case in which the waiter is stopped
 func TestTxWaiter_Done(t *testing.T) {
+
 	producer := newMockTxProducer(t)
 	waiter := NewTxWaiter(common.Hash{}, producer)
 	go func() {

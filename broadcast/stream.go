@@ -263,7 +263,7 @@ func (s *Stream) Header() <-chan *types.Header {
 	return s.headers
 }
 
-// TransactionIncluded returns a channel that forwards incoming transactions
+// Transaction returns a channel that forwards incoming transactions
 func (s *Stream) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.transactions
 }
