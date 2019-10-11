@@ -277,3 +277,8 @@ func (s *Stream) Close() error {
 	<-s.closed
 	return nil
 }
+
+// Done signals when Stream has been shutdown
+func (s *Stream) Done() <-chan struct{} {
+	return s.shutdown
+}

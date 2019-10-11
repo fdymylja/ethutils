@@ -19,6 +19,7 @@ type txProducer interface {
 // TxWaiter is a type that waits for transactions to be included in an ethereum block, it uses a txProducer to receive
 // data regarding the transaction
 type TxWaiter struct {
+	//
 	hash       common.Hash                  // hash is the has of the transaction
 	waiterDone chan struct{}                // waiterDone signals the waiter is shuttingDown
 	stop       chan struct{}                // stop is used to signal that we should stop waiting for the transaction
@@ -57,8 +58,12 @@ func (w *TxWaiter) wait() {
 		w.txProducer.removeTxWaiter(w) // remove the txWaiter instance from the list of waiters
 	// case transaction is found, forward it to caller
 	case tx := <-w.resp:
-		w.txIncluded <- tx
+		w.onTransactionIncluded(tx)
 	}
+}
+
+func (w *TxWaiter) onTransactionIncluded(tx *interfaces.TxWithBlock) {
+	w.txIncluded <- tx
 }
 
 // waiterRemoved is called by Awaiter to signal that the waiter has been successfully removed
