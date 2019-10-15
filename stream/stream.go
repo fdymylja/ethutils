@@ -69,11 +69,11 @@ func (c *Client) context() (context.Context, context.CancelFunc) {
 func (c *Client) Connect() (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// check if connected
+	// check if closed
 	if c.connected {
 		return status.ErrAlreadyConnected
 	}
-	// if it is not connected init
+	// if it is not closed init
 	c.init()
 	// connect to ethereum node
 	ctx, cancel := c.context()
@@ -92,7 +92,7 @@ func (c *Client) Connect() (err error) {
 	}
 	// start main loop
 	go c.loop(headers, sub)
-	// at the end set connected to true
+	// at the end set closed to true
 	c.connected = true
 	// return
 	return
@@ -213,7 +213,7 @@ func (c *Client) sendError(err error) {
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// check if connected
+	// check if closed
 	if !c.connected {
 		return status.ErrNotConnected
 	}
@@ -227,7 +227,7 @@ func (c *Client) Close() error {
 	c.client.Close()
 	// send shutdown error to parent
 	c.sendError(status.ErrShutdown)
-	// set connected to false
+	// set closed to false
 	c.connected = false
 	// return
 	return nil
