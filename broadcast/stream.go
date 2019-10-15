@@ -85,7 +85,7 @@ type Stream struct {
 	transactions chan *interfaces.TxWithBlock // transactions is the channel used to forward transactions to the parent
 	headers      chan *types.Header           // headers is the channel used to forward headers to the parent
 	shutdown     chan struct{}                // shutdown is used to close the Streamer
-	errs         chan error                   // errs is used to forward errors coming from the Streamer
+	errs         chan error                   // parentError is used to forward errors coming from the Streamer
 	shutdownOnce *sync.Once                   // shutdownOnce guarantees that shutdown is only shuttingDown once
 	closed       chan struct{}                // closed sends a signal to Close() caller that close operations are shuttingDown
 }
@@ -116,9 +116,7 @@ func (s *Stream) Connect() (err error) {
 
 // listenBlockHeaders listens for new ethereum headers and errors coming from the subscriber
 func (s *Stream) listenBlockHeaders(headers <-chan *types.Header, sub ethereum.Subscription) {
-	defer func() {
-		sub.Unsubscribe()
-	}()
+	defer s.cleanup()
 	// broadcast wait
 	subErr := sub.Err()
 	for {
@@ -156,7 +154,7 @@ func (s *Stream) onHeader(header *types.Header) {
 		case s.headers <- header:
 		}
 	}
-	// if no stream tx and block is required then just return and forward header
+	// if no stream tx and block is required then just return
 	if !(s.options.StreamTransactions || s.options.StreamBlocks) {
 		return
 	}
@@ -222,7 +220,7 @@ func (s *Stream) downloadBlock(header *types.Header) (block *types.Block, err er
 	}
 }
 
-// ctx returns a context for operations based on StreamOptions.NodeOpTimeout
+// ctx returns a context with timeout for operations, timeout is taken from StreamOptions.NodeOpTimeout
 func (s *Stream) ctx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), s.options.NodeOpTimeout)
 }
@@ -276,9 +274,4 @@ func (s *Stream) Close() error {
 	})
 	<-s.closed
 	return nil
-}
-
-// Done signals when Stream has been shutdown
-func (s *Stream) Done() <-chan struct{} {
-	return s.shutdown
 }

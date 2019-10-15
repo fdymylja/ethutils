@@ -38,5 +38,4 @@ type Streamer interface {
 	Transaction() <-chan *TxWithBlock // Transaction streams new transactions coming from the ethereum network
 	Err() <-chan error                // Err returns errors coming from the underlying streaming client
 	Close() error                     // Close allows to turn the streamer off
-	Done() <-chan struct{}            // Done signals when the streamer has exited
 }

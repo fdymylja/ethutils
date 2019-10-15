@@ -11,7 +11,7 @@ type Awaiter struct {
 	streamer interfaces.Streamer
 	mu       *sync.Mutex
 
-	errs            chan error    // errs forwards errors to parent
+	errs            chan error    // parentError forwards errors to parent
 	shutdown        chan struct{} // shutdown signals the Awaiter to exit
 	shutdownWaiters chan struct{} // shutdownWaiters signals every waiter to exit
 	shutdownOnce    *sync.Once    // shutdownOnce makes sure shutdown op can be only performed one time

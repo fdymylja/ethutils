@@ -18,7 +18,7 @@ type HeaderWaiter struct {
 	waiterDone    chan struct{}      // waiterDone signals when the waiter is shutting down
 	stop          chan struct{}      // stop is called externally to signal that HeaderWaiter has to stop waiting
 	stopOnce      *sync.Once         // stopOnce makes sure Stop() is called only once
-	errs          chan error         // errs is used to signal the caller that there was some error
+	errs          chan error         // parentError is used to signal the caller that there was some error
 	resp          chan *types.Header // resp is used by the headerProducer to forward the new block
 	blockInserted chan *types.Header // blockInserted signals the user that the block was included
 

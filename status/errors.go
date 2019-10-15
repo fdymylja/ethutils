@@ -23,3 +23,7 @@ var ErrShutdown = errors.New("operation stopped due to shutdown")
 
 // ErrClosed is returned when the instance we are using has been already closed, hence the call is a no-op
 var ErrClosed = errors.New("unable to make operation: instance is shutdown")
+
+var ErrAlreadyConnected = errors.New("already connected")
+
+var ErrNotConnected = errors.New("not connected")

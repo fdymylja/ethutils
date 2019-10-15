@@ -24,7 +24,7 @@ type TxWaiter struct {
 	waiterDone chan struct{}                // waiterDone signals the waiter is shuttingDown
 	stop       chan struct{}                // stop is used to signal that we should stop waiting for the transaction
 	stopOnce   *sync.Once                   // stopOnce makes sure the TxWaiter is stopped only once
-	errs       chan error                   // errs is used to signal the caller that there was some error
+	errs       chan error                   // parentError is used to signal the caller that there was some error
 	resp       chan *interfaces.TxWithBlock // resp is used to forward transaction information
 	txIncluded chan *interfaces.TxWithBlock // txIncluded is the channel used to forward information to the caller
 
