@@ -42,7 +42,9 @@ func newStoppableStreamer(parent ssParent) *stoppableStreamer {
 		stopOnce:     new(sync.Once),
 		parent:       parent,
 
-		alive: true,
+		alive:   true,
+		sendOps: new(sync.WaitGroup),
+		mu:      new(sync.Mutex),
 	}
 }
 
@@ -54,7 +56,17 @@ func (s *stoppableStreamer) sendError(err error) { // send one error only
 }
 
 func (s *stoppableStreamer) sendTransaction(tx *interfaces.TxWithBlock) {
+	// check if alive
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.alive {
+		return
+	}
+	// if alive add one send op
+	s.sendOps.Add(1)
 	go func() {
+		// after we're done sending signal that goroutine is done
+		defer s.sendOps.Done()
 		select {
 		case <-s.shutdown:
 		case s.transactions <- tx:
@@ -63,7 +75,17 @@ func (s *stoppableStreamer) sendTransaction(tx *interfaces.TxWithBlock) {
 }
 
 func (s *stoppableStreamer) sendBlock(block *types.Block) {
+	// check if alive
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.alive {
+		return
+	}
+	// if alive add one send op
+	s.sendOps.Add(1)
 	go func() {
+		// after we're done sending signal that goroutine is done
+		defer s.sendOps.Done()
 		select {
 		case <-s.shutdown:
 		case s.blocks <- block:
@@ -72,7 +94,17 @@ func (s *stoppableStreamer) sendBlock(block *types.Block) {
 }
 
 func (s *stoppableStreamer) sendHeader(header *types.Header) {
+	// check if alive
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.alive {
+		return
+	}
+	// if alive add one send op
+	s.sendOps.Add(1)
 	go func() {
+		// after we're done sending signal that goroutine is done
+		defer s.sendOps.Done()
 		select {
 		case <-s.shutdown:
 		case s.headers <- header:
@@ -89,7 +121,11 @@ func (s *stoppableStreamer) stop() {
 
 func (s *stoppableStreamer) close() {
 	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.alive = false
 		close(s.shutdown)
+		s.sendOps.Wait()
 		s.sendError(status.ErrShutdown) // send shutdown error
 	})
 }

@@ -12,11 +12,12 @@ import (
 )
 
 type mockStoppableStreamer struct {
+	removed  bool
 	streamer *stoppableStreamer
 }
 
 func (m *mockStoppableStreamer) removeListener(childIF msChildIF) {
-	m.streamer = nil
+	m.removed = true
 }
 
 func newMockStoppableStreamer() *mockStoppableStreamer {
@@ -89,7 +90,7 @@ func TestStoppableStreamer_Close(t *testing.T) {
 		t.Fatal("error send timeout")
 	}
 	<-closeDone
-	if producer.streamer != nil {
+	if !producer.removed {
 		t.Fatal("streamer was not set to nil")
 	}
 }
@@ -132,3 +133,46 @@ func TestStoppableStreamer_Transaction(t *testing.T) {
 }
 
 // Cover the case in which the Streamer is stopped while there are send ops
+func TestStoppableStreamer_Close2(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	producer.streamer = streamer
+	producer.sendTx(nil)
+	producer.sendHeader(nil)
+	producer.sendBlock(nil)
+	go func() {
+		time.Sleep(1 * time.Second)
+		streamer.Close()
+	}()
+	// wait close
+	select {
+	case err := <-streamer.Err():
+		if !errors.Is(err, status.ErrShutdown) {
+			t.Fatalf("expected status.ErrShutdown, got: %s", err)
+		}
+	}
+	// see if goroutines dropped the msg
+	select {
+	case <-streamer.Block():
+		t.Fatal("received block")
+	case <-streamer.Transaction():
+		t.Fatal("received tx")
+	case <-streamer.Header():
+		t.Fatal("received header")
+	default:
+
+	}
+	// see if in case streamer is not alive the send ops are blocking or not
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			panic("ops are blocking")
+		}
+	}()
+	streamer.sendBlock(new(types.Block))
+	streamer.sendHeader(new(types.Header))
+	streamer.sendTransaction(new(interfaces.TxWithBlock))
+	close(done)
+}
