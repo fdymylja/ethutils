@@ -25,7 +25,7 @@ type stoppableStreamer struct {
 	parent ssParent
 
 	// todo synchronize goroutines exit with a wait group and a mutex
-	mu      *sync.Mutex
+	mu      sync.Mutex
 	alive   bool
 	sendOps *sync.WaitGroup
 }
@@ -44,7 +44,7 @@ func newStoppableStreamer(parent ssParent) *stoppableStreamer {
 
 		alive:   true,
 		sendOps: new(sync.WaitGroup),
-		mu:      new(sync.Mutex),
+		mu:      sync.Mutex{},
 	}
 }
 
@@ -56,15 +56,16 @@ func (s *stoppableStreamer) sendError(err error) { // send one error only
 }
 
 func (s *stoppableStreamer) sendTransaction(tx *interfaces.TxWithBlock) {
-	// check if alive
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.alive {
-		return
-	}
-	// if alive add one send op
-	s.sendOps.Add(1)
 	go func() {
+		// check if alive
+		s.mu.Lock()
+		if !s.alive {
+			s.mu.Unlock()
+			return
+		}
+		// if alive add one send op
+		s.sendOps.Add(1)
+		s.mu.Unlock()
 		// after we're done sending signal that goroutine is done
 		defer s.sendOps.Done()
 		select {
@@ -75,15 +76,16 @@ func (s *stoppableStreamer) sendTransaction(tx *interfaces.TxWithBlock) {
 }
 
 func (s *stoppableStreamer) sendBlock(block *types.Block) {
-	// check if alive
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.alive {
-		return
-	}
-	// if alive add one send op
-	s.sendOps.Add(1)
 	go func() {
+		// check if alive
+		s.mu.Lock()
+		if !s.alive {
+			s.mu.Unlock()
+			return
+		}
+		// if alive add one send op
+		s.sendOps.Add(1)
+		s.mu.Unlock()
 		// after we're done sending signal that goroutine is done
 		defer s.sendOps.Done()
 		select {
@@ -94,15 +96,16 @@ func (s *stoppableStreamer) sendBlock(block *types.Block) {
 }
 
 func (s *stoppableStreamer) sendHeader(header *types.Header) {
-	// check if alive
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.alive {
-		return
-	}
-	// if alive add one send op
-	s.sendOps.Add(1)
 	go func() {
+		// check if alive
+		s.mu.Lock()
+		if !s.alive {
+			s.mu.Unlock()
+			return
+		}
+		// if alive add one send op
+		s.sendOps.Add(1)
+		s.mu.Unlock()
 		// after we're done sending signal that goroutine is done
 		defer s.sendOps.Done()
 		select {

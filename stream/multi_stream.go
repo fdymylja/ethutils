@@ -21,16 +21,16 @@ type msChildIF interface {
 // MultiStream fans out data coming from a type that implements interfaces.Streamer to more listeners
 // listeners can be generated using NewListener() function, the children listeners implement interfaces.Streamer
 // in case an error is received from the internal streamer this error is forwarded to all children
-//
 type MultiStream struct {
 	streamer    interfaces.Streamer    // streamer is the client that forwards new information to MultiStream
-	mu          *sync.Mutex            // mu is used for sync purposes
+	mu          sync.Mutex             // mu is used for sync purposes
 	closed      bool                   // closed is to stop operations in case MultiStream is not active
 	shutdown    chan struct{}          // shutdown signals the loop goroutine to exit
 	cleanupDone chan struct{}          // cleanUpDone signals to Close() users that the operation is finished
 	listeners   map[msChildIF]struct{} // listeners is the list of children that want to receive updates
 
 	lastError     error      // lastError keeps track of the last error of the listener, which is the same among all children
+	parentErr     chan error // parentErr notifies the parent listener of an error
 	sendErrorOnce *sync.Once // sendErrorOnce makes sure that only one error is sent to children
 }
 
@@ -45,10 +45,13 @@ func (s *MultiStream) removeListener(childIF msChildIF) {
 func NewMultiStream(streamer interfaces.Streamer) *MultiStream {
 	m := &MultiStream{
 		streamer:      streamer,
-		mu:            new(sync.Mutex),
+		mu:            sync.Mutex{},
 		closed:        false,
 		shutdown:      make(chan struct{}),
+		cleanupDone:   make(chan struct{}),
 		listeners:     make(map[msChildIF]struct{}),
+		lastError:     nil,
+		parentErr:     make(chan error, 1),
 		sendErrorOnce: new(sync.Once),
 	}
 	go m.loop()
@@ -81,11 +84,21 @@ func (s *MultiStream) loop() {
 func (s *MultiStream) onError(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sendError(err)
+}
+
+// sendError forwards error to all children and to MultiStream errs channel, only one error will ever be forwarded
+// the error is saved in lastError for future uses, this function is not concurrency safe.
+func (s *MultiStream) sendError(err error) {
 	s.sendErrorOnce.Do(func() {
 		for listener := range s.listeners {
 			listener.sendError(err)
 			s.lastError = err
+
 		}
+		// forward error to parent
+		s.parentErr <- err
+		close(s.parentErr)
 	})
 }
 
@@ -125,12 +138,7 @@ func (s *MultiStream) cleanup() {
 	// send error to listeners, in case an error was already sent this part will do nothing
 	// in case no error was sent and the shutdown was external then all listeners will be notified
 	// of an external shutdown, in this case Close() being called
-	s.sendErrorOnce.Do(func() {
-		for listener := range s.listeners {
-			listener.sendError(status.ErrShutdown)
-			s.lastError = status.ErrShutdown
-		}
-	})
+	s.sendError(status.ErrShutdown)
 	// close all listeners
 	for listener := range s.listeners {
 		listener.close()
@@ -142,6 +150,8 @@ func (s *MultiStream) cleanup() {
 	// set closed to true, set it again to false in case the shutdown is not external, Close() being called,
 	// but internal, due to error.
 	s.closed = true
+	// signal done to Close()
+	close(s.cleanupDone)
 }
 
 func (s *MultiStream) NewListener() (interfaces.Streamer, error) {
@@ -161,24 +171,24 @@ func (s *MultiStream) NewListener() (interfaces.Streamer, error) {
 
 // Close terminates the MultiStream instance and sends status.ErrShutdown to all listeners children
 func (s *MultiStream) Close() error {
-	// lock USE A SIGNAL THAT SIGNALS A SUCCESSFUL TERMINATION SO U USE MU LOCK HERE AND IN RETURN
+	// lock
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	// check if already closed
 	if s.closed {
+		s.mu.Unlock() // unlock
 		return status.ErrClosed
 	}
 	// set closed to false
 	s.closed = true
+	s.mu.Unlock() // unlock
 	// signal exit to loop function
 	close(s.shutdown)
+	<-s.cleanupDone // wait for cleanup to be finished
 	return nil
 }
 
 // Err returns the last error of the listener, the error is shared among all children listeners
 // this serves as a common place to gather the last, and only, error coming from MultiStream
-func (s *MultiStream) Err() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lastError
+func (s *MultiStream) Err() <-chan error {
+	return s.parentErr
 }

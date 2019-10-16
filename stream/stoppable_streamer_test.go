@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/status"
+	"sync"
 	"testing"
 	"time"
 )
@@ -137,12 +138,27 @@ func TestStoppableStreamer_Close2(t *testing.T) {
 	producer := newMockStoppableStreamer()
 	streamer := newStoppableStreamer(producer)
 	producer.streamer = streamer
-	producer.sendTx(nil)
-	producer.sendHeader(nil)
-	producer.sendBlock(nil)
+	wg := sync.WaitGroup{}
+	wg.Add(10000)
+	start := time.Now()
+	for i := 0; i < 10000; i++ {
+		go func() {
+			defer wg.Done()
+			producer.sendTx(nil)
+			producer.sendHeader(nil)
+			producer.sendBlock(nil)
+		}()
+	}
+	wg.Wait()
+	end := time.Now().Sub(start)
+	t.Log(end)
+	closeTime := make(chan time.Duration, 1)
 	go func() {
 		time.Sleep(1 * time.Second)
+		start := time.Now()
 		streamer.Close()
+		end := time.Now().Sub(start)
+		closeTime <- end
 	}()
 	// wait close
 	select {
@@ -162,17 +178,19 @@ func TestStoppableStreamer_Close2(t *testing.T) {
 	default:
 
 	}
+	// close time log
+	t.Log("close time", <-closeTime)
 	// see if in case streamer is not alive the send ops are blocking or not
 	done := make(chan struct{})
 	go func() {
-		select {
-		case <-done:
-		case <-time.After(1 * time.Second):
-			panic("ops are blocking")
-		}
+		streamer.sendBlock(new(types.Block))
+		streamer.sendHeader(new(types.Header))
+		streamer.sendTransaction(new(interfaces.TxWithBlock))
+		close(done)
 	}()
-	streamer.sendBlock(new(types.Block))
-	streamer.sendHeader(new(types.Header))
-	streamer.sendTransaction(new(interfaces.TxWithBlock))
-	close(done)
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		panic("ops are blocking")
+	}
 }
