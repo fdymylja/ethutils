@@ -33,6 +33,28 @@ func ExampleClient() {
 	}
 }
 
+func TestClientOnEthereum(t *testing.T) {
+	streamer := NewClientDefault("ws://127.0.0.1:8545")
+	err := streamer.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer streamer.Close()
+	exit := time.After(1 * time.Minute)
+	for {
+		select {
+		case err := <-streamer.Err():
+			panic(err)
+		case tx := <-streamer.Transaction():
+			log.Printf("recv at block %d tx: %s", tx.BlockNumber, tx.Transaction.Hash().String())
+		case header := <-streamer.Header():
+			log.Printf("recv header for block %d", header.Number.Uint64())
+		case <-exit:
+			return
+		}
+	}
+}
+
 func TestClient_ConnectClose(t *testing.T) {
 	client := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
 	err := client.Connect()

@@ -1,4 +1,4 @@
-package mocks
+package oldmocks
 
 // just imagine writing tests for testers
 import (

@@ -4,80 +4,26 @@ import (
 	"errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
+	"github.com/fdymylja/ethutils/mocks"
 	"github.com/fdymylja/ethutils/status"
 	"testing"
 	"time"
 )
 
-type mockStreamer struct {
-	closed bool
-	tx     chan *interfaces.TxWithBlock
-	blocks chan *types.Block
-	header chan *types.Header
-	errs   chan error
-}
-
-func (s *mockStreamer) Block() <-chan *types.Block {
-	return s.blocks
-}
-
-func (s *mockStreamer) Header() <-chan *types.Header {
-	return s.header
-}
-
-func (s *mockStreamer) Transaction() <-chan *interfaces.TxWithBlock {
-	return s.tx
-}
-
-func (s *mockStreamer) Err() <-chan error {
-	return s.errs
-}
-
-func (s *mockStreamer) Close() error {
-	s.closed = true
-	return nil
-}
-
-func (s *mockStreamer) sendError(err error) {
-	s.errs <- err
-}
-
-func (s *mockStreamer) sendTx(tx *interfaces.TxWithBlock) {
-	s.tx <- tx
-}
-
-func (s *mockStreamer) sendBlock(block *types.Block) {
-	s.blocks <- block
-}
-
-func (s *mockStreamer) sendHeader(header *types.Header) {
-	s.header <- header
-}
-
-func newMockStreamer() *mockStreamer {
-	return &mockStreamer{
-		closed: false,
-		tx:     make(chan *interfaces.TxWithBlock),
-		blocks: make(chan *types.Block),
-		header: make(chan *types.Header),
-		errs:   make(chan error, 1),
-	}
-}
-
 func TestNewMultiStream(t *testing.T) {
-	_ = NewMultiStream(newMockStreamer())
+	_ = NewMultiStream(mocks.NewStreamer())
 }
 
 // Cover error forwarding and the fact that errors are only sent once
 func TestMultiStream_Err(t *testing.T) {
 	testError := errors.New("test error")
-	streamer := newMockStreamer()
+	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
 	listener, err := ms.NewListener()
 	if err != nil {
 		t.Fatal(err)
 	}
-	streamer.sendError(testError)
+	streamer.SendError(testError)
 	// extract error from listener
 	select {
 	case err := <-listener.Err():
@@ -97,7 +43,7 @@ func TestMultiStream_Err(t *testing.T) {
 		t.Fatalf("no error received")
 	}
 	// try to forward another error to test if errs are forwarded once only
-	streamer.sendError(testError)
+	streamer.SendError(testError)
 	// extract error from listener
 	select {
 	case _, ok := <-listener.Err():
@@ -124,15 +70,15 @@ func TestMultiStream_NewListener(t *testing.T) {
 	testHeader := [32]byte{0xc3, 0xbd, 0x2d, 0x0, 0x74, 0x5c, 0x3, 0x4, 0x8a, 0x56, 0x16, 0x14, 0x6a, 0x96, 0xf5, 0xff, 0x78, 0xe5, 0x4e, 0xfb, 0x9e, 0x5b, 0x4, 0xaf, 0x20, 0x8c, 0xda, 0xff, 0x6f, 0x38, 0x30, 0xee}
 	testBlock := [32]byte{0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a, 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a, 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13, 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47}
 	testTransactionBlockNumber := uint64(1000)
-	streamer := newMockStreamer()
+	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
 	listener, err := ms.NewListener()
 	if err != nil {
 		t.Fatal(err)
 	}
-	streamer.sendHeader(new(types.Header))
-	streamer.sendBlock(new(types.Block))
-	streamer.sendTx(&interfaces.TxWithBlock{BlockNumber: testTransactionBlockNumber})
+	streamer.SendHeader(new(types.Header))
+	streamer.SendBlock(new(types.Block))
+	streamer.SendTransaction(&interfaces.TxWithBlock{BlockNumber: testTransactionBlockNumber})
 	select {
 	case h := <-listener.Header():
 		if h.Hash() != testHeader {
@@ -171,7 +117,7 @@ func TestMultiStream_NewListener(t *testing.T) {
 }
 
 func TestMultiStream_Close(t *testing.T) {
-	streamer := newMockStreamer()
+	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
 	listener, err := ms.NewListener()
 	if err != nil {
@@ -208,5 +154,9 @@ func TestMultiStream_Close(t *testing.T) {
 	err = ms.Close()
 	if !errors.Is(err, status.ErrClosed) {
 		t.Fatalf("unexpected error: %s", err)
+	}
+	// see if parent streamer is closed
+	if !streamer.Terminated() {
+		t.Fatal("parent streamer is not closed")
 	}
 }

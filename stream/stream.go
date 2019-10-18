@@ -13,7 +13,35 @@ import (
 	"time"
 )
 
-func NewClient(endpoint string, options *StreamOptions) *Client {
+// DefaultStreamOptions defines the default options for the Stream
+var DefaultStreamOptions = &Options{
+	NodeOpTimeout:      15 * time.Second,
+	MaxRetries:         50,
+	RetryWait:          5 * time.Second,
+	WaitAfterHeader:    5 * time.Second,
+	StreamHeaders:      true,
+	StreamTransactions: true,
+}
+
+// Options represents the parameters used
+type Options struct {
+	// NodeOpTimeout is the timeout for node query operations
+	NodeOpTimeout time.Duration
+	// MaxRetries is the number of retries to make while querying headers content (-1 equals retry infinitely)
+	MaxRetries int
+	// RetryWait is how long we wait before retrying again
+	RetryWait time.Duration
+	// WaitAfterHeader is how long the client waits before querying block contents
+	WaitAfterHeader time.Duration
+	// StreamBlocks is used to define if blocks should be forwarded to the parent
+	StreamBlocks bool
+	// StreamHeaders is used to define if headers should be forwarded to the parent
+	StreamHeaders bool
+	// StreamTransactions is used to define if transactions forwarded to the parent
+	StreamTransactions bool
+}
+
+func NewClient(endpoint string, options *Options) *Client {
 	return &Client{
 		mu:       new(sync.Mutex),
 		endpoint: endpoint,
@@ -41,7 +69,7 @@ type Client struct {
 	loopExit      chan struct{}
 
 	endpoint string
-	options  *StreamOptions
+	options  *Options
 
 	mu        *sync.Mutex
 	connected bool
@@ -170,7 +198,7 @@ func (c *Client) onHeader(header *types.Header) (err error) {
 }
 
 // downloadBlock pulls block data from ethereum node including transactions, it retries a total amount of times
-// equivalent to StreamOptions.MaxRetries before returning an error
+// equivalent to Options.MaxRetries before returning an error
 func (c *Client) downloadBlock(header *types.Header) (block *types.Block, err error) {
 	// sleep before pulling the block, the Ethereum network is BIG, synchronization between thousands of nodes takes time
 	// ethereum nodes might notify of a new incoming block but the node we have queried  might still be unaware of its presence.
@@ -263,32 +291,4 @@ type ErrDownloadBlock struct {
 // Error implements error interface
 func (e *ErrDownloadBlock) Error() string {
 	return fmt.Sprintf("failure in pulling block %d: %s", e.BlockNumber, e.Err)
-}
-
-// DefaultStreamOptions defines the default options for the Stream
-var DefaultStreamOptions = &StreamOptions{
-	NodeOpTimeout:      15 * time.Second,
-	MaxRetries:         50,
-	RetryWait:          5 * time.Second,
-	WaitAfterHeader:    5 * time.Second,
-	StreamHeaders:      true,
-	StreamTransactions: true,
-}
-
-// StreamOptions represents the parameters used
-type StreamOptions struct {
-	// NodeOpTimeout is the timeout for node query operations
-	NodeOpTimeout time.Duration
-	// MaxRetries is the number of retries to make while querying headers content (-1 equals retry infinitely)
-	MaxRetries int
-	// RetryWait is how long we wait before retrying again
-	RetryWait time.Duration
-	// WaitAfterHeader is how long the client waits before querying block contents
-	WaitAfterHeader time.Duration
-	// StreamBlocks is used to define if blocks should be forwarded to the parent
-	StreamBlocks bool
-	// StreamHeaders is used to define if headers should be forwarded to the parent
-	StreamHeaders bool
-	// StreamTransactions is used to define if transactions forwarded to the parent
-	StreamTransactions bool
 }

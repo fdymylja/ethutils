@@ -1,4 +1,4 @@
-package mocks
+package oldmocks
 
 import (
 	"testing"
