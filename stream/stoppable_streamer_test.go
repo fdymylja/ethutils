@@ -114,6 +114,7 @@ func TestStoppableStreamer_Header(t *testing.T) {
 	}
 }
 
+// Cover simple tx send
 func TestStoppableStreamer_Transaction(t *testing.T) {
 	producer := newMockStoppableStreamer()
 	streamer := newStoppableStreamer(producer)
@@ -131,6 +132,43 @@ func TestStoppableStreamer_Transaction(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Fatal("transaction send timeout")
 	}
+}
+
+// Cover tx send with queue
+func TestStoppableStreamer_Transaction2(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	producer.streamer = streamer
+	producer.sendTx(&interfaces.TxWithBlock{
+		Transaction: nil,
+		BlockNumber: 1,
+		Timestamp:   1,
+	})
+	producer.sendTx(&interfaces.TxWithBlock{
+		Transaction: nil,
+		BlockNumber: 2,
+		Timestamp:   1,
+	})
+	select {
+	case tx := <-streamer.Transaction():
+		if tx.BlockNumber != 1 {
+			t.Fatal("wrong block forwarded")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("transaction send timeout")
+	}
+	select {
+	case tx := <-streamer.Transaction():
+		if tx.BlockNumber != 2 {
+			t.Fatal("wrong block forwarded")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("transaction send timeout")
+	}
+}
+
+func TestStoppableStreamer_Transaction3(t *testing.T) {
+
 }
 
 // Cover the case in which the Streamer is stopped while there are send ops
