@@ -13,12 +13,14 @@ type ssParent interface {
 }
 
 type stoppableStreamer struct {
-	blocksFromStreamer       chan *types.Block // blocksFromStreamer is used to forward blocks coming from streamer to listenAndSendBlocks goroutine
-	blocksToListener         chan *types.Block // blocksToListener is used to forward blocks to the listener
-	headersFromStreamer      chan *types.Header
-	headersToListener        chan *types.Header
-	transactionsToListener   chan *interfaces.TxWithBlock
-	transactionsFromStreamer chan *interfaces.TxWithBlock
+	blocksFromStreamer       chan *types.Block            // blocksFromStreamer is used to forward blocks coming from streamer to listenAndSendBlocks goroutine
+	blocksToListener         chan *types.Block            // blocksToListener is used to forward blocks to the listener
+	headersFromStreamer      chan *types.Header           // headersFromStreamer is used to forward blocks coming from streamer to listenAndServeHeaders goroutine
+	headersToListener        chan *types.Header           // headersToListener is used to forward blocks to the listener
+	transactionsFromStreamer chan *interfaces.TxWithBlock // transactionsFromStreamer is used to forward transactions coming from streamer to listenAndServeTransactions goroutine
+	transactionsToListener   chan *interfaces.TxWithBlock // transactionsToListener is used to forward transactions to the listener
+
+	options *MultiStreamOptions
 
 	shutdown    chan struct{}
 	errs        chan error
@@ -28,8 +30,6 @@ type stoppableStreamer struct {
 
 	parent ssParent
 
-	// todo synchronize goroutines exit with a wait group and a mutex
-	mu      sync.Mutex
 	sendOps sync.WaitGroup
 }
 
@@ -48,14 +48,21 @@ func newStoppableStreamer(parent ssParent) *stoppableStreamer {
 		stopOnce:                 sync.Once{},
 		parent:                   parent,
 
+		options: DefaultMultiStreamOptions,
+
 		sendOps: sync.WaitGroup{},
-		mu:      sync.Mutex{},
 	}
 	s.sendOps.Add(3) // add one worker for each goroutine to synchronize close operations
+	go s.listenShutdown()
 	go s.listenAndSendTransactions()
 	go s.listenAndSendBlocks()
 	go s.listenAndSendHeaders()
 	return s
+}
+
+func (s *stoppableStreamer) listenShutdown() {
+	<-s.shutdown
+	s.cleanup()
 }
 
 func (s *stoppableStreamer) listenAndSendTransactions() {
@@ -74,6 +81,12 @@ func (s *stoppableStreamer) listenAndSendTransactions() {
 		// now that we have at least one transaction in the queue forward the tx to the listener, while waiting
 		// for new transactions to be put on the queue
 		for {
+			// check if the instance has reached the maximum allowed
+			if transactionQueue.Len() >= s.options.MaxTransactionsQueueSize {
+				s.sendError(ErrMaximumTransactionQueueSizeReached)
+				s.close()
+				return
+			}
 			tx := transactionQueue.Front()
 			if tx == nil { // in case the queue is empty return to first select case
 				break
@@ -85,7 +98,6 @@ func (s *stoppableStreamer) listenAndSendTransactions() {
 			case s.transactionsToListener <- tx.Value.(*interfaces.TxWithBlock): // case send to listener
 				transactionQueue.Remove(tx) // remove element from transactions list
 			case newTx := <-s.transactionsFromStreamer: // case a new transaction has arrived push it to the transaction queue
-				// TODO queue limits
 				transactionQueue.PushBack(newTx)
 			}
 		}
@@ -113,6 +125,12 @@ func (s *stoppableStreamer) listenAndSendBlocks() {
 		}
 		// once we have some elements in the queue start sending them to the listener, while waiting for new blocks from streamer
 		for {
+			// if queue max length was reached then forward error and quit
+			if blocksQueue.Len() >= s.options.MaxBlocksQueueSize {
+				s.sendError(ErrMaximumBlocksQueueSizeReached)
+				s.close()
+				return
+			}
 			block := blocksQueue.Front()
 			if block == nil { // if there are no new blocks on the queue go on first select case and wait for new blocks
 				break
@@ -122,7 +140,7 @@ func (s *stoppableStreamer) listenAndSendBlocks() {
 			case <-s.shutdown: // if shutdown, exit goroutine
 				return
 			case newBlock := <-s.blocksFromStreamer: // if a new block was received, insert it in the queue
-				// TODO check for queue limits
+				// push new block into queue
 				blocksQueue.PushBack(newBlock)
 			case s.blocksToListener <- block.Value.(*types.Block): // if block was forwarded to listener then remove it from queue
 				blocksQueue.Remove(block)
@@ -151,6 +169,12 @@ func (s *stoppableStreamer) listenAndSendHeaders() {
 		}
 		// once we have at least one elem in the queue
 		for {
+			// check if maximum queue size was reached
+			if headersQueue.Len() >= s.options.MaxHeadersQueueSize {
+				s.sendError(ErrMaximumHeadersQueueSizeReached)
+				s.close()
+				return
+			}
 			header := headersQueue.Front()
 			if header == nil { // case queue empty go to first select and wait for new headers to fill the queue
 				break
@@ -182,13 +206,15 @@ func (s *stoppableStreamer) stop() {
 	})
 }
 
+// cleanup is called after close is called
+func (s *stoppableStreamer) cleanup() {
+	s.sendOps.Wait()
+	s.sendError(status.ErrShutdown) // send shutdown error
+}
+
 func (s *stoppableStreamer) close() {
 	s.closeOnce.Do(func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
 		close(s.shutdown)
-		s.sendOps.Wait()
-		s.sendError(status.ErrShutdown) // send shutdown error
 	})
 }
 
@@ -199,7 +225,7 @@ func (s *stoppableStreamer) sendError(err error) { // send one error only
 	})
 }
 
-// implement Streamer
+// implement interfaces.Streamer
 
 func (s *stoppableStreamer) Block() <-chan *types.Block {
 	return s.blocksToListener

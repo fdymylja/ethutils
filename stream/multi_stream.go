@@ -1,11 +1,30 @@
 package stream
 
 import (
+	"errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/status"
 	"sync"
 )
+
+var ErrMaximumTransactionQueueSizeReached = errors.New("maximum transaction queue size has been reached")
+var ErrMaximumHeadersQueueSizeReached = errors.New("maximum headers queue size has been reached")
+var ErrMaximumBlocksQueueSizeReached = errors.New("maximum blocks queue size has been reached")
+
+// MultiStreamOptions defines settings for MultiStream
+type MultiStreamOptions struct {
+	MaxBlocksQueueSize       int // MaxBlocksQueueSize defines the maximum number of blocks allowed in the queue
+	MaxTransactionsQueueSize int // MaxTransactionsQueueSize defines the maximum number of transactions in the queue
+	MaxHeadersQueueSize      int // MaxHeadersQueueSize defines the maximum number of headers in the queue
+}
+
+// DefaultMultiStreamOptions defines the default options for MultiStream
+var DefaultMultiStreamOptions = &MultiStreamOptions{
+	MaxBlocksQueueSize:       100,
+	MaxTransactionsQueueSize: 1000,
+	MaxHeadersQueueSize:      200,
+}
 
 // msChildIF defines the unexported behaviour of a listener used internally by MultiStream
 // all operations should be non-blocking to avoid stalling the loop function forever, which is
