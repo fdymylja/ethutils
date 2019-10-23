@@ -11,7 +11,7 @@ import (
 
 func main() {
 	log.Print("starting")
-	eth, err := ethclient.Dial("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	eth, err := ethclient.Dial("wss://ropsten.infura.io/ws")
 	if err != nil {
 		log.Fatal(err)
 	}

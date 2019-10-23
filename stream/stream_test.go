@@ -11,7 +11,7 @@ import (
 // ExampleClient streams recv from ropsten network, default options used
 func ExampleClient() {
 	// init Streamer
-	streamer := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	streamer := NewClientDefault("wss://ropsten.infura.io/ws")
 	// connect it
 	err := streamer.Connect()
 	if err != nil {
@@ -34,7 +34,7 @@ func ExampleClient() {
 }
 
 func TestClientOnEthereum(t *testing.T) {
-	streamer := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	streamer := NewClientDefault("wss://ropsten.infura.io/ws")
 	err := streamer.Connect()
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestClientOnEthereum(t *testing.T) {
 }
 
 func TestClient_ConnectClose(t *testing.T) {
-	client := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	client := NewClientDefault("wss://ropsten.infura.io/ws")
 	err := client.Connect()
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestClient_ConnectClose(t *testing.T) {
 }
 
 func TestClient_Connect(t *testing.T) {
-	client := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	client := NewClientDefault("wss://ropsten.infura.io/ws")
 	err := client.Connect()
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestClient_Connect(t *testing.T) {
 
 // Covers the case of Connect->Close->Connect
 func TestClient_Reuse(t *testing.T) {
-	client := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	client := NewClientDefault("wss://ropsten.infura.io/ws")
 	err := client.Connect()
 	if err != nil {
 		t.Fatal(err)

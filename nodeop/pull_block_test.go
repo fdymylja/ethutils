@@ -9,7 +9,7 @@ import (
 )
 
 func testEthClient() *ethclient.Client {
-	endpoint := "wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9"
+	endpoint := "wss://ropsten.infura.io/ws"
 	client, err := ethclient.Dial(endpoint)
 	if err != nil {
 		panic(err)
