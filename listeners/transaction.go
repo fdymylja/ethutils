@@ -35,7 +35,7 @@ func NewTransaction(streamer interfaces.Streamer, txID common.Hash, confirmation
 	if len(confirmationBlocks) != 0 && confirmationBlocks[0] != 0 {
 		confirmBlocks = confirmationBlocks[0]
 	}
-	// return instance
+	// instantiate instance
 	t := &Transaction{
 		streamer:           streamer,
 		mu:                 sync.Mutex{},
@@ -51,7 +51,9 @@ func NewTransaction(streamer interfaces.Streamer, txID common.Hash, confirmation
 		errs:               make(chan error),
 		sendErrOnce:        sync.Once{},
 	}
+	// start the loop
 	go t.loop()
+	// return the instance
 	return t
 }
 
