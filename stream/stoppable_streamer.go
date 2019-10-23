@@ -33,7 +33,11 @@ type stoppableStreamer struct {
 	sendOps sync.WaitGroup
 }
 
-func newStoppableStreamer(parent ssParent) *stoppableStreamer {
+func newStoppableStreamer(parent ssParent, options ...*MultiStreamOptions) *stoppableStreamer {
+	option := DefaultMultiStreamOptions
+	if len(options) > 0 && options[0] != nil {
+		option = options[0]
+	}
 	s := &stoppableStreamer{
 		blocksFromStreamer:       make(chan *types.Block),
 		blocksToListener:         make(chan *types.Block),
@@ -48,7 +52,7 @@ func newStoppableStreamer(parent ssParent) *stoppableStreamer {
 		stopOnce:                 sync.Once{},
 		parent:                   parent,
 
-		options: DefaultMultiStreamOptions,
+		options: option,
 
 		sendOps: sync.WaitGroup{},
 	}

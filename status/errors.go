@@ -18,6 +18,10 @@ func (err *ErrMaxRetriesReached) Error() string {
 	return fmt.Sprintf("max number of retries reached")
 }
 
+func (err *ErrMaxRetriesReached) Unwrap() error {
+	return err.LastError
+}
+
 // ErrShutdown is returned when an ongoing operation is stopped by an instance shutdown
 var ErrShutdown = errors.New("operation stopped due to shutdown")
 

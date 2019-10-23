@@ -292,3 +292,7 @@ type ErrDownloadBlock struct {
 func (e *ErrDownloadBlock) Error() string {
 	return fmt.Sprintf("failure in pulling block %d: %s", e.BlockNumber, e.Err)
 }
+
+func (e *ErrDownloadBlock) Unwrap() error {
+	return e.Err
+}

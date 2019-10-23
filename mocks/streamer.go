@@ -60,6 +60,6 @@ func NewStreamer() *Streamer {
 		tx:     make(chan *interfaces.TxWithBlock),
 		blocks: make(chan *types.Block),
 		header: make(chan *types.Header),
-		errs:   make(chan error, 1),
+		errs:   make(chan error, 1000),
 	}
 }

@@ -28,7 +28,7 @@ func NewBlock(streamer interfaces.Streamer, blockNumber uint64) *Block {
 		waitBlock:     blockNumber,
 		mu:            new(sync.Mutex),
 		terminated:    false,
-		blockReceived: make(chan *types.Block),
+		blockReceived: make(chan *types.Block), // make the send op blocking so we're sure that the block is forwarded before exit
 		errs:          make(chan error, 1),
 		sendErrOnce:   new(sync.Once),
 		shutdown:      make(chan struct{}),
@@ -88,8 +88,6 @@ func (b *Block) cleanup() {
 	defer b.mu.Unlock()
 	// send shutdown error in case the cleanup is coming from Close()
 	b.sendError(status.ErrShutdown)
-	// close block forward channel
-	close(b.blockReceived)
 	// close streamer
 	b.streamer.Close()
 	// set instance as terminated

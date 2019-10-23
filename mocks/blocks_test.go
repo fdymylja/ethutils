@@ -1,17 +1,22 @@
 package mocks
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"io/ioutil"
 	"os"
 	"testing"
 )
 
 func Test1(t *testing.T) {
+	t.Log(os.Getwd())
 	m := 10
-	blocks := make([][]byte, m+1)
+	blocks := make(map[uint64]string)
 	for i := 0; i <= m; i++ {
-		f, err := os.Open("../testfiles/blocks/1.block")
+		f, err := os.Open(fmt.Sprintf("../testfiles/blocks/%d.block", i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -20,32 +25,22 @@ func Test1(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		blocks[i] = s
-	}
-	s, err := os.OpenFile("blocks.go", os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	stuff := fmt.Sprintf("blocks := %#v", blocks)
-	_, err = s.Write([]byte(stuff))
-	if err != nil {
-		t.Fatal(err)
-	}
-	//
-	// decode block
-	/*
+		//
 		block := new(types.Block)
-		err = rlp.Decode(f, block)
+		err = rlp.Decode(bytes.NewReader(s), block)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("%#v", block)
-		b, err := json.Marshal(block)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("%s", b)
-	*/
-	// r := hex.NewDecoder(f)
+		//
+		blockHex := hex.EncodeToString(s)
+		blocks[block.NumberU64()] = blockHex
+	}
+	for blockNumber, blockHex := range blocks {
+		t.Logf("var Block%d mockBlock = \"%s\"", blockNumber, blockHex)
+	}
+}
+
+func Test2(t *testing.T) {
+	b := Block6550147.MustDecode()
+	t.Log(b.NumberU64())
 }

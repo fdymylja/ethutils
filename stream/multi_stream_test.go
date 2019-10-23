@@ -19,10 +19,12 @@ func TestMultiStream_Err(t *testing.T) {
 	testError := errors.New("test error")
 	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
+	defer ms.Close()
 	listener, err := ms.NewListener()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer listener.Close()
 	streamer.SendError(testError)
 	// extract error from listener
 	select {

@@ -34,7 +34,7 @@ func ExampleClient() {
 }
 
 func TestClientOnEthereum(t *testing.T) {
-	streamer := NewClientDefault("ws://127.0.0.1:8545")
+	streamer := NewClientDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
 	err := streamer.Connect()
 	if err != nil {
 		t.Fatal(err)

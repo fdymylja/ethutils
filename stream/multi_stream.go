@@ -41,6 +41,7 @@ type msChildIF interface {
 // listeners can be generated using NewListener() function, the children listeners implement interfaces.Streamer
 // in case an error is received from the internal streamer this error is forwarded to all children
 type MultiStream struct {
+	options     *MultiStreamOptions    // options defines the MultiStream settings for the children
 	streamer    interfaces.Streamer    // streamer is the client that forwards new information to MultiStream
 	mu          sync.Mutex             // mu is used for sync purposes
 	closed      bool                   // closed is to stop operations in case MultiStream is not active
@@ -61,8 +62,13 @@ func (s *MultiStream) removeListener(childIF msChildIF) {
 }
 
 // NewMultiStream generates a new MultiStream instance based on a Streamer
-func NewMultiStream(streamer interfaces.Streamer) *MultiStream {
+func NewMultiStream(streamer interfaces.Streamer, options ...*MultiStreamOptions) *MultiStream {
+	option := DefaultMultiStreamOptions
+	if len(options) > 0 && options[0] != nil {
+		option = options[0]
+	}
 	m := &MultiStream{
+		options:       option,
 		streamer:      streamer,
 		mu:            sync.Mutex{},
 		closed:        false,
