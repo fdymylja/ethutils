@@ -124,7 +124,12 @@ func (b *Block) Err() <-chan error {
 func (b *Block) WaitContext(ctx context.Context) (block *types.Block, err error) {
 	select {
 	case block = <-b.Block():
-	case err = <-b.Err():
+	case err2, ok := <-b.Err():
+		if !ok {
+			err = status.ErrShutdown
+			return
+		}
+		err = err2
 	case <-ctx.Done():
 		err = ctx.Err()
 	}
