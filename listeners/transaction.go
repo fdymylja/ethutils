@@ -39,7 +39,7 @@ func NewTransaction(streamer interfaces.Streamer, txID common.Hash, confirmation
 	t := &Transaction{
 		streamer:           streamer,
 		mu:                 sync.Mutex{},
-		alive:              false,
+		alive:              true,
 		txID:               txID,
 		txFound:            false,
 		tx:                 nil,
@@ -48,7 +48,7 @@ func NewTransaction(streamer interfaces.Streamer, txID common.Hash, confirmation
 		shutdown:           make(chan struct{}),
 		shutdownOnce:       sync.Once{},
 		signalClosed:       make(chan struct{}),
-		errs:               make(chan error),
+		errs:               make(chan error, 1),
 		sendErrOnce:        sync.Once{},
 	}
 	// start the loop
@@ -95,7 +95,7 @@ func (t *Transaction) onBlockNumberUpdate(blockNumber uint64) (exit bool) {
 		return false
 	}
 	// check if the transaction was found, if not return with exit state = false
-	if !t.txFound {
+	if t.tx == nil {
 		return false
 	}
 	// if the tx was found, check how many blocks we've witnessed as of now
@@ -191,7 +191,7 @@ func (t *Transaction) WaitContext(ctx context.Context) (tx *interfaces.TxWithBlo
 		}
 		err = err2
 	case <-ctx.Done(): // wait for context cancellation
-		err = ctx.Err()
+		err = ctx.Err() // TODO should we close the instance?
 	}
 	return
 }

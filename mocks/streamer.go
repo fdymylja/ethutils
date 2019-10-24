@@ -3,9 +3,11 @@ package mocks
 import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
+	"sync"
 )
 
 type Streamer struct {
+	mu     sync.Mutex
 	closed bool
 	tx     chan *interfaces.TxWithBlock
 	blocks chan *types.Block
@@ -30,6 +32,8 @@ func (s *Streamer) Err() <-chan error {
 }
 
 func (s *Streamer) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.closed = true
 	return nil
 }
@@ -51,6 +55,8 @@ func (s *Streamer) SendHeader(header *types.Header) {
 }
 
 func (s *Streamer) Terminated() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.closed
 }
 
