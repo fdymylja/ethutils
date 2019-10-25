@@ -8,7 +8,11 @@ import (
 	"sync"
 )
 
-type Block struct {
+// BlockWaiter takes an interfaces.Streamer and a block number and forwards the block to the blockReceived channel, there are different
+// ways to wait for the block, one is to listen for it using Block(), otherwise it is possible to Wait() for the block
+// or WaitContext(context.Context), BlockWaiter will forward one error only, the error received will be forward in case you're listening
+// for errors using Err(), or to WaitContext() and Wait(). It is better to wait for a block using only one path
+type BlockWaiter struct {
 	streamer  interfaces.Streamer
 	waitBlock uint64
 
@@ -22,8 +26,8 @@ type Block struct {
 	cleanupDone   chan struct{}
 }
 
-func NewBlock(streamer interfaces.Streamer, blockNumber uint64) *Block {
-	b := &Block{
+func NewBlock(streamer interfaces.Streamer, blockNumber uint64) *BlockWaiter {
+	b := &BlockWaiter{
 		streamer:      streamer,
 		waitBlock:     blockNumber,
 		mu:            new(sync.Mutex),
@@ -39,7 +43,7 @@ func NewBlock(streamer interfaces.Streamer, blockNumber uint64) *Block {
 	return b
 }
 
-func (b *Block) loop() {
+func (b *BlockWaiter) loop() {
 	defer b.cleanup()
 	for {
 		select {
@@ -59,7 +63,7 @@ func (b *Block) loop() {
 	}
 }
 
-func (b *Block) onBlock(block *types.Block) bool {
+func (b *BlockWaiter) onBlock(block *types.Block) bool {
 	// check if the block we received is not the one we're looking for
 	if b.waitBlock != block.NumberU64() {
 		return false
@@ -72,18 +76,18 @@ func (b *Block) onBlock(block *types.Block) bool {
 	return true
 }
 
-func (b *Block) onError(err error) {
+func (b *BlockWaiter) onError(err error) {
 	b.sendError(err)
 }
 
-func (b *Block) sendError(err error) {
+func (b *BlockWaiter) sendError(err error) {
 	b.sendErrOnce.Do(func() {
 		b.errs <- err
 		close(b.errs)
 	})
 }
 
-func (b *Block) cleanup() {
+func (b *BlockWaiter) cleanup() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	// send shutdown error in case the cleanup is coming from Close()
@@ -96,7 +100,7 @@ func (b *Block) cleanup() {
 	close(b.cleanupDone)
 }
 
-func (b *Block) Close() error {
+func (b *BlockWaiter) Close() error {
 	b.mu.Lock()
 	if b.terminated {
 		b.mu.Unlock()
@@ -113,15 +117,15 @@ func (b *Block) Close() error {
 	return nil
 }
 
-func (b *Block) Block() <-chan *types.Block {
+func (b *BlockWaiter) Block() <-chan *types.Block {
 	return b.blockReceived
 }
 
-func (b *Block) Err() <-chan error {
+func (b *BlockWaiter) Err() <-chan error {
 	return b.errs
 }
 
-func (b *Block) WaitContext(ctx context.Context) (block *types.Block, err error) {
+func (b *BlockWaiter) WaitContext(ctx context.Context) (block *types.Block, err error) {
 	select {
 	case block = <-b.Block():
 	case err2, ok := <-b.Err():
@@ -136,6 +140,6 @@ func (b *Block) WaitContext(ctx context.Context) (block *types.Block, err error)
 	return
 }
 
-func (b *Block) Wait() (block *types.Block, err error) {
+func (b *BlockWaiter) Wait() (block *types.Block, err error) {
 	return b.WaitContext(context.Background())
 }

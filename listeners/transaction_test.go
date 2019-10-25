@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/mocks"
+	"github.com/fdymylja/ethutils/mocks/testblocks"
 	"github.com/fdymylja/ethutils/status"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ func TestNewTransaction(t *testing.T) {
 }
 
 func TestTransaction_Transaction(t *testing.T) {
-	testBlock := mocks.Block6550147.MustDecode()
+	testBlock := testblocks.Block6550147.MustDecode()
 	testTx := testBlock.Transactions()[0]
 	testHash := testTx.Hash()
 	streamer := mocks.NewStreamer()
@@ -42,7 +43,7 @@ func TestTransaction_Transaction(t *testing.T) {
 }
 
 func TestTransaction_Wait(t *testing.T) {
-	testBlock := mocks.Block6550147.MustDecode()
+	testBlock := testblocks.Block6550147.MustDecode()
 	testTx := testBlock.Transactions()[0]
 	testHash := testTx.Hash()
 	streamer := mocks.NewStreamer()
@@ -76,7 +77,7 @@ func TestTransaction_Wait(t *testing.T) {
 
 // Cover wait block approval
 func TestTransaction_Wait2(t *testing.T) {
-	testBlock := mocks.Block6550147.MustDecode()
+	testBlock := testblocks.Block6550147.MustDecode()
 	testTx := testBlock.Transactions()[0]
 	testHash := testTx.Hash()
 	streamer := mocks.NewStreamer()
@@ -96,8 +97,8 @@ func TestTransaction_Wait2(t *testing.T) {
 	case <-time.After(1 * time.Second): // pass
 	}
 	// send block that deems the transaction finalized
-	streamer.SendHeader(mocks.Block6550149.MustDecode().Header())
-	streamer.SendBlock(mocks.Block6550151.MustDecode())
+	streamer.SendHeader(testblocks.Block6550149.MustDecode().Header())
+	streamer.SendBlock(testblocks.Block6550151.MustDecode())
 	select {
 	case tx := <-txListener.Transaction():
 		if tx.Transaction.Hash() != testHash {

@@ -1,4 +1,4 @@
-package mocks
+package testblocks
 
 import (
 	"bytes"
@@ -13,10 +13,10 @@ import (
 
 func Test1(t *testing.T) {
 	t.Log(os.Getwd())
-	m := 10
+	m := 100
 	blocks := make(map[uint64]string)
 	for i := 0; i <= m; i++ {
-		f, err := os.Open(fmt.Sprintf("../testfiles/blocks/%d.block", i))
+		f, err := os.Open(fmt.Sprintf("../../testfiles/blocks/%d.block", i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -35,8 +35,17 @@ func Test1(t *testing.T) {
 		blockHex := hex.EncodeToString(s)
 		blocks[block.NumberU64()] = blockHex
 	}
+	toPrint := ""
 	for blockNumber, blockHex := range blocks {
-		t.Logf("var Block%d mockBlock = \"%s\"", blockNumber, blockHex)
+		toPrint = fmt.Sprintf("%s\nvar Block%d mockBlock = \"%s\"", toPrint, blockNumber, blockHex)
+	}
+	f, err := os.OpenFile("blocks.go", os.O_APPEND, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.WriteString(toPrint)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

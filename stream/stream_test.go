@@ -33,6 +33,7 @@ func ExampleClient() {
 	}
 }
 
+/*
 func TestClientOnEthereum(t *testing.T) {
 	streamer := NewClientDefault("wss://ropsten.infura.io/ws")
 	err := streamer.Connect()
@@ -54,7 +55,7 @@ func TestClientOnEthereum(t *testing.T) {
 		}
 	}
 }
-
+*/
 func TestClient_ConnectClose(t *testing.T) {
 	client := NewClientDefault("wss://ropsten.infura.io/ws")
 	err := client.Connect()
@@ -96,8 +97,6 @@ func TestClient_Reuse(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-var testError = errors.New("test error")
 
 func TestClient_Close(t *testing.T) {
 	s := NewClientDefault("")
