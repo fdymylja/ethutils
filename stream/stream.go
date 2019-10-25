@@ -176,6 +176,7 @@ func (c *Client) onHeader(header *types.Header) (err error) {
 	}
 	// check if instance has to stream blocks
 	if c.options.StreamBlocks {
+		// if true, stream blocks
 		select {
 		case <-c.shutdown:
 			return
@@ -184,6 +185,7 @@ func (c *Client) onHeader(header *types.Header) (err error) {
 	}
 	// check if instance has to stream transactions
 	if c.options.StreamTransactions {
+		// if true, stream transactions
 		for _, tx := range block.Transactions() {
 			select {
 			case <-c.shutdown:
@@ -255,7 +257,7 @@ func (c *Client) Close() error {
 	<-c.loopExit
 	// close ethereum client
 	c.client.Close()
-	// send shutdown error to parent
+	// send shutdown error to listener
 	c.sendError(status.ErrShutdown)
 	// set closed to false
 	c.connected = false
