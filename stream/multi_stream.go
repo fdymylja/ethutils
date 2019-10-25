@@ -19,9 +19,9 @@ var ErrMaximumBlocksQueueSizeReached = errors.New("maximum blocks queue size has
 
 // MultiStreamOptions defines settings for MultiStream
 type MultiStreamOptions struct {
-	MaxBlocksQueueSize       int // MaxBlocksQueueSize defines the maximum number of blocks allowed in the queue
-	MaxTransactionsQueueSize int // MaxTransactionsQueueSize defines the maximum number of transactions in the queue
-	MaxHeadersQueueSize      int // MaxHeadersQueueSize defines the maximum number of headers in the queue
+	MaxBlocksQueueSize       int // MaxBlocksQueueSize defines the maximum number of blocks allowed in the queue of each MultiStream children
+	MaxTransactionsQueueSize int // MaxTransactionsQueueSize defines the maximum number of transactions in the queue of each MultiStream children
+	MaxHeadersQueueSize      int // MaxHeadersQueueSize defines the maximum number of headers in the queue MultiStream children
 }
 
 // DefaultMultiStreamOptions defines the default options for MultiStream
