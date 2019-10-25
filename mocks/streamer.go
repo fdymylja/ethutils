@@ -14,6 +14,8 @@ type Streamer struct {
 	blocks chan *types.Block
 	header chan *types.Header
 	errs   chan error
+
+	shutdown chan struct{}
 }
 
 // Block implements interfaces.Streamer
@@ -72,12 +74,16 @@ func (s *Streamer) Terminated() bool {
 }
 
 // NewStreamer builds a mock streamer
-func NewStreamer() *Streamer {
-	return &Streamer{
+func NewStreamer(blocks ...*types.Block) *Streamer {
+	if len(blocks) != 0 {
+
+	}
+	s := &Streamer{
 		closed: false,
 		tx:     make(chan *interfaces.TxWithBlock),
 		blocks: make(chan *types.Block),
 		header: make(chan *types.Header),
 		errs:   make(chan error, 1000),
 	}
+	return s
 }
