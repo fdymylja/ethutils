@@ -8,8 +8,13 @@ import (
 	"sync"
 )
 
+// ErrMaximumTransactionQueueSizeReached is called when the maximum number of queued transactions is reached
 var ErrMaximumTransactionQueueSizeReached = errors.New("maximum transaction queue size has been reached")
+
+// ErrMaximumHeadersQueueSizeReached is called when the maximum number of queued transactions is reached
 var ErrMaximumHeadersQueueSizeReached = errors.New("maximum headers queue size has been reached")
+
+// ErrMaximumBlocksQueueSizeReached is called when the maximum number of queued blocks is reached
 var ErrMaximumBlocksQueueSizeReached = errors.New("maximum blocks queue size has been reached")
 
 // MultiStreamOptions defines settings for MultiStream
@@ -38,7 +43,7 @@ type msChildIF interface {
 }
 
 // MultiStream fans out data coming from a type that implements interfaces.Streamer to more listeners
-// listeners can be generated using NewListener() function, the children listeners implement interfaces.Streamer
+// listeners can be generated using NewChildren() function, the children listeners implement interfaces.Streamer
 // in case an error is received from the internal streamer this error is forwarded to all children
 type MultiStream struct {
 	options     *MultiStreamOptions    // options defines the MultiStream settings for the children
@@ -179,7 +184,10 @@ func (s *MultiStream) cleanup() {
 	close(s.cleanupDone)
 }
 
-func (s *MultiStream) NewListener() (interfaces.Streamer, error) {
+// NewChildren generates a new multiStreamChildren, returning it in the form of interfaces.Streamer, said children
+// behaves as a normal interfaces.Streamer, it will quit in case MultiStream is closed or has received an error from the
+// underlying streamer.
+func (s *MultiStream) NewChildren() (interfaces.Streamer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// check if closed

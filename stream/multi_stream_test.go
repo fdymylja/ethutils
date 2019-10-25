@@ -20,7 +20,7 @@ func TestMultiStream_Err(t *testing.T) {
 	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
 	defer ms.Close()
-	listener, err := ms.NewListener()
+	listener, err := ms.NewChildren()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestMultiStream_Err(t *testing.T) {
 	}
 }
 
-// Cover functionality of NewListener func and the correct flow of information
+// Cover functionality of NewChildren func and the correct flow of information
 // checks also for the correct removal of listeners during Close called from the children
 func TestMultiStream_NewListener(t *testing.T) {
 	testHeader := [32]byte{0xc3, 0xbd, 0x2d, 0x0, 0x74, 0x5c, 0x3, 0x4, 0x8a, 0x56, 0x16, 0x14, 0x6a, 0x96, 0xf5, 0xff, 0x78, 0xe5, 0x4e, 0xfb, 0x9e, 0x5b, 0x4, 0xaf, 0x20, 0x8c, 0xda, 0xff, 0x6f, 0x38, 0x30, 0xee}
@@ -74,7 +74,7 @@ func TestMultiStream_NewListener(t *testing.T) {
 	testTransactionBlockNumber := uint64(1000)
 	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
-	listener, err := ms.NewListener()
+	listener, err := ms.NewChildren()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestMultiStream_NewListener(t *testing.T) {
 		}
 	}
 	// generate new listener and check if it is removed correctly
-	listener, err = ms.NewListener()
+	listener, err = ms.NewChildren()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestMultiStream_NewListener(t *testing.T) {
 func TestMultiStream_Close(t *testing.T) {
 	streamer := mocks.NewStreamer()
 	ms := NewMultiStream(streamer)
-	listener, err := ms.NewListener()
+	listener, err := ms.NewChildren()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestMultiStream_Close(t *testing.T) {
 		t.Fatal("no error received")
 	}
 	// check if creation of new streamers is allowed
-	listener, err = ms.NewListener()
+	listener, err = ms.NewChildren()
 	if err == nil {
 		t.Fatal("error expected")
 	}

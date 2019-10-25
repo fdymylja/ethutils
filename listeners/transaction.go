@@ -30,7 +30,7 @@ type Transaction struct {
 // NewTransaction builds a new transaction listener, it takes a streamer, a transaction ID and (optional) the number of
 // confirmation blocks required to deem the transaction finalized
 func NewTransaction(streamer interfaces.Streamer, txID common.Hash, confirmationBlocks ...uint64) *Transaction {
-	var confirmBlocks uint64 = 0
+	var confirmBlocks uint64
 	// check for confirmation blocks
 	if len(confirmationBlocks) != 0 && confirmationBlocks[0] != 0 {
 		confirmBlocks = confirmationBlocks[0]

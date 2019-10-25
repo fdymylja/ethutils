@@ -23,7 +23,7 @@ var DefaultStreamOptions = &Options{
 	StreamTransactions: true,
 }
 
-// Options represents the parameters used
+// Options represents the options used for Client
 type Options struct {
 	// NodeOpTimeout is the timeout for node query operations
 	NodeOpTimeout time.Duration
@@ -41,6 +41,7 @@ type Options struct {
 	StreamTransactions bool
 }
 
+// NewClient generates a new Client instance taking the node endpoint and the options
 func NewClient(endpoint string, options *Options) *Client {
 	return &Client{
 		mu:       new(sync.Mutex),
@@ -49,6 +50,7 @@ func NewClient(endpoint string, options *Options) *Client {
 	}
 }
 
+// NewClientDefault returns a client taking an endpoint and the default options
 func NewClientDefault(endpoint string) *Client {
 	return NewClient(endpoint, DefaultStreamOptions)
 }
@@ -293,6 +295,7 @@ func (e *ErrDownloadBlock) Error() string {
 	return fmt.Sprintf("failure in pulling block %d: %s", e.BlockNumber, e.Err)
 }
 
+// Unwrap implements errors.Unwrapper
 func (e *ErrDownloadBlock) Unwrap() error {
 	return e.Err
 }

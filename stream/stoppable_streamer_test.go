@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
+	"github.com/fdymylja/ethutils/mocks/testblocks"
 	"github.com/fdymylja/ethutils/status"
 	"sync"
 	"testing"
@@ -14,7 +15,7 @@ import (
 
 type mockStoppableStreamer struct {
 	removed  bool
-	streamer *stoppableStreamer
+	streamer *multiStreamChildren
 }
 
 func (m *mockStoppableStreamer) removeListener(childIF msChildIF) {
@@ -213,13 +214,18 @@ func TestStoppableStreamer_Close2(t *testing.T) {
 	producer.streamer = streamer
 	wg := sync.WaitGroup{}
 	wg.Add(10000)
+	block := testblocks.Block6550146.MustDecode()
 	start := time.Now()
 	for i := 0; i < 10000; i++ {
 		go func() {
 			defer wg.Done()
-			producer.sendTx(nil)
-			producer.sendHeader(nil)
-			producer.sendBlock(nil)
+			producer.sendTx(&interfaces.TxWithBlock{
+				Transaction: block.Transactions()[0],
+				BlockNumber: block.NumberU64(),
+				Timestamp:   block.Time(),
+			})
+			producer.sendHeader(block.Header())
+			producer.sendBlock(block)
 		}()
 	}
 	wg.Wait()

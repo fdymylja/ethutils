@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// Streamer mocks an interfaces.Streamer
 type Streamer struct {
 	mu     sync.Mutex
 	closed bool
@@ -15,22 +16,27 @@ type Streamer struct {
 	errs   chan error
 }
 
+// Block implements interfaces.Streamer
 func (s *Streamer) Block() <-chan *types.Block {
 	return s.blocks
 }
 
+// Header implements interfaces.Streamer
 func (s *Streamer) Header() <-chan *types.Header {
 	return s.header
 }
 
+// Transaction implements interfaces.Streamer
 func (s *Streamer) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.tx
 }
 
+// Err implements interfaces.Streamer
 func (s *Streamer) Err() <-chan error {
 	return s.errs
 }
 
+// Close implements interfaces.Streamer
 func (s *Streamer) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -38,28 +44,34 @@ func (s *Streamer) Close() error {
 	return nil
 }
 
+// SendError injects an error in the mock streamer
 func (s *Streamer) SendError(err error) {
 	s.errs <- err
 }
 
+// SendTransaction injects a transaction in the mock streamer
 func (s *Streamer) SendTransaction(tx *interfaces.TxWithBlock) {
 	s.tx <- tx
 }
 
+// SendBlock injects a block in the mock streamer
 func (s *Streamer) SendBlock(block *types.Block) {
 	s.blocks <- block
 }
 
+// SendHeader injects an header in the mock streamer
 func (s *Streamer) SendHeader(header *types.Header) {
 	s.header <- header
 }
 
+// Terminated checks if the mock streamer was closed
 func (s *Streamer) Terminated() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closed
 }
 
+// NewStreamer builds a mock streamer
 func NewStreamer() *Streamer {
 	return &Streamer{
 		closed: false,

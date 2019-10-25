@@ -8,11 +8,11 @@ import (
 	"sync"
 )
 
-type ssParent interface {
+type multiStreamParent interface {
 	removeListener(childIF msChildIF)
 }
 
-type stoppableStreamer struct {
+type multiStreamChildren struct {
 	blocksFromStreamer       chan *types.Block            // blocksFromStreamer is used to forward blocks coming from streamer to listenAndSendBlocks goroutine
 	blocksToListener         chan *types.Block            // blocksToListener is used to forward blocks to the listener
 	headersFromStreamer      chan *types.Header           // headersFromStreamer is used to forward blocks coming from streamer to listenAndServeHeaders goroutine
@@ -28,17 +28,17 @@ type stoppableStreamer struct {
 	closeOnce   sync.Once
 	stopOnce    sync.Once
 
-	parent ssParent
+	parent multiStreamParent
 
 	sendOps sync.WaitGroup
 }
 
-func newStoppableStreamer(parent ssParent, options ...*MultiStreamOptions) *stoppableStreamer {
+func newStoppableStreamer(parent multiStreamParent, options ...*MultiStreamOptions) *multiStreamChildren {
 	option := DefaultMultiStreamOptions
 	if len(options) > 0 && options[0] != nil {
 		option = options[0]
 	}
-	s := &stoppableStreamer{
+	s := &multiStreamChildren{
 		blocksFromStreamer:       make(chan *types.Block),
 		blocksToListener:         make(chan *types.Block),
 		headersFromStreamer:      make(chan *types.Header),
@@ -64,12 +64,12 @@ func newStoppableStreamer(parent ssParent, options ...*MultiStreamOptions) *stop
 	return s
 }
 
-func (s *stoppableStreamer) listenShutdown() {
+func (s *multiStreamChildren) listenShutdown() {
 	<-s.shutdown
 	s.cleanup()
 }
 
-func (s *stoppableStreamer) listenAndSendTransactions() {
+func (s *multiStreamChildren) listenAndSendTransactions() {
 	defer s.sendOps.Done()
 	transactionQueue := list.New()
 	defer transactionQueue.Init() // clean the list once the function exits
@@ -108,14 +108,14 @@ func (s *stoppableStreamer) listenAndSendTransactions() {
 	}
 }
 
-func (s *stoppableStreamer) sendTransaction(tx *interfaces.TxWithBlock) {
+func (s *multiStreamChildren) sendTransaction(tx *interfaces.TxWithBlock) {
 	select {
 	case s.transactionsFromStreamer <- tx: // this op should never block, unless listenAndSendTransactions goroutine has quit
 	case <-s.shutdown: // in case the instance has shutdown drop the message
 	}
 }
 
-func (s *stoppableStreamer) listenAndSendBlocks() {
+func (s *multiStreamChildren) listenAndSendBlocks() {
 	defer s.sendOps.Done()    // signal the goroutine has exited on function return
 	blocksQueue := list.New() // create a new queue
 	defer blocksQueue.Init()  // clean list when the goroutine exits
@@ -153,14 +153,14 @@ func (s *stoppableStreamer) listenAndSendBlocks() {
 	}
 }
 
-func (s *stoppableStreamer) sendBlock(block *types.Block) {
+func (s *multiStreamChildren) sendBlock(block *types.Block) {
 	select {
 	case s.blocksFromStreamer <- block: // this op should never block, unless listenAndSendBlocks goroutine has quit
 	case <-s.shutdown: // in case the instance has shutdown drop the block send op
 	}
 }
 
-func (s *stoppableStreamer) listenAndSendHeaders() {
+func (s *multiStreamChildren) listenAndSendHeaders() {
 	defer s.sendOps.Done()
 	headersQueue := list.New()
 	defer headersQueue.Init()
@@ -196,14 +196,14 @@ func (s *stoppableStreamer) listenAndSendHeaders() {
 	}
 }
 
-func (s *stoppableStreamer) sendHeader(header *types.Header) {
+func (s *multiStreamChildren) sendHeader(header *types.Header) {
 	select {
 	case s.headersFromStreamer <- header: // this op should never block, unless listenAndSendHeaders goroutine has quit
 	case <-s.shutdown: // in case instance has shutdown drop the header send op
 	}
 }
 
-func (s *stoppableStreamer) stop() {
+func (s *multiStreamChildren) stop() {
 	s.stopOnce.Do(func() {
 		s.parent.removeListener(s)
 		s.close()
@@ -211,18 +211,18 @@ func (s *stoppableStreamer) stop() {
 }
 
 // cleanup is called after close is called
-func (s *stoppableStreamer) cleanup() {
+func (s *multiStreamChildren) cleanup() {
 	s.sendOps.Wait()
 	s.sendError(status.ErrShutdown) // send shutdown error
 }
 
-func (s *stoppableStreamer) close() {
+func (s *multiStreamChildren) close() {
 	s.closeOnce.Do(func() {
 		close(s.shutdown)
 	})
 }
 
-func (s *stoppableStreamer) sendError(err error) { // send one error only
+func (s *multiStreamChildren) sendError(err error) { // send one error only
 	s.sendErrOnce.Do(func() {
 		s.errs <- err
 		close(s.errs)
@@ -231,23 +231,28 @@ func (s *stoppableStreamer) sendError(err error) { // send one error only
 
 // implement interfaces.Streamer
 
-func (s *stoppableStreamer) Block() <-chan *types.Block {
+// Block implements interfaces.Streamer
+func (s *multiStreamChildren) Block() <-chan *types.Block {
 	return s.blocksToListener
 }
 
-func (s *stoppableStreamer) Header() <-chan *types.Header {
+// Header implements interfaces.Streamer
+func (s *multiStreamChildren) Header() <-chan *types.Header {
 	return s.headersToListener
 }
 
-func (s *stoppableStreamer) Transaction() <-chan *interfaces.TxWithBlock {
+// Transaction implements interfaces.Streamer
+func (s *multiStreamChildren) Transaction() <-chan *interfaces.TxWithBlock {
 	return s.transactionsToListener
 }
 
-func (s *stoppableStreamer) Err() <-chan error {
+// Err implements interfaces.Streamer
+func (s *multiStreamChildren) Err() <-chan error {
 	return s.errs
 }
 
-func (s *stoppableStreamer) Close() error {
+// Close implements interfaces.Streamer
+func (s *multiStreamChildren) Close() error {
 	s.stop()
 	return nil
 }

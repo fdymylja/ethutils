@@ -1,16 +1,10 @@
 package testblocks
 
 import (
-	"bytes"
-	"encoding/hex"
-	"fmt"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
-	"io/ioutil"
-	"os"
 	"testing"
 )
 
+/*
 func Test1(t *testing.T) {
 	t.Log(os.Getwd())
 	m := 100
@@ -48,7 +42,7 @@ func Test1(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
+*/
 func Test2(t *testing.T) {
 	b := Block6550147.MustDecode()
 	t.Log(b.NumberU64())
