@@ -43,6 +43,7 @@ func Test1(t *testing.T) {
 	}
 }
 */
+
 func Test2(t *testing.T) {
 	b := Block6550147.MustDecode()
 	t.Log(b.NumberU64())
