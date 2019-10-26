@@ -61,10 +61,12 @@ func (s *Subscription) Unsubscribe() {
 	})
 }
 
+// Err returns a channel that forwards a subscription error
 func (s *Subscription) Err() <-chan error {
 	return s.err
 }
 
+// BlockByHash implements interfaces.Node
 func (n *Node) BlockByHash(ctx context.Context, hash common.Hash) (block *types.Block, err error) {
 	for _, b := range n.blocks {
 		if b.Hash() == hash {
@@ -74,6 +76,7 @@ func (n *Node) BlockByHash(ctx context.Context, hash common.Hash) (block *types.
 	return nil, ethereum.NotFound
 }
 
+// BlockByNumber implements interfaces.Node
 func (n *Node) BlockByNumber(ctx context.Context, blockN *big.Int) (block *types.Block, err error) {
 	for _, b := range n.blocks {
 		if blockN.Cmp(b.Number()) == 0 {
@@ -96,6 +99,7 @@ func (n *Node) Close() {
 	n.activeRoutines.Wait()
 }
 
+// SubscribeNewHead implements interfaces.Node
 func (n *Node) SubscribeNewHead(ctx context.Context, headers chan<- *types.Header) (sub ethereum.Subscription, err error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

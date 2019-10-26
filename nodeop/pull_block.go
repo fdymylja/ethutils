@@ -43,6 +43,8 @@ func DownloadBlocksByRange(ctx context.Context, client interfaces.BlockPuller, b
 	return
 }
 
+// DownloadBlocksCnc downloads a range of blocks, returns two channels, the first is for downloaded blocks, the second is for errors
+// only one error is forwarded. One error will shutdown the operation. When the operation terminates the block channel is closed
 func DownloadBlocksCnc(ctx context.Context, client interfaces.BlockPuller, blockStart, blockFinish uint64) (<-chan *types.Block, <-chan error) {
 	c := make(chan *types.Block, blockFinish-blockStart+1)
 	errs := make(chan error, 1)

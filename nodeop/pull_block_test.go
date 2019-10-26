@@ -29,6 +29,11 @@ func TestDownloadBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// make it fail
+	_, err = DownloadBlock(context.Background(), c, common.Hash{})
+	if err == nil {
+		t.Fatal("error expected")
+	}
 }
 
 func TestDownloadRangeByNumberRange(t *testing.T) {

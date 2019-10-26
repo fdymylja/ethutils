@@ -57,7 +57,7 @@ func NewClientDefault(endpoint string) *Client {
 
 // Client is an ethereum events streamer, it connects to an ethereum node and pulls information regarding headers,
 // transactions or entire blocks too. It is concurrency safe and can be used multiple times as long as Close() is called
-// before the next Connect(). It forwards only one error, the error can come from the ethereum subscription or from
+// before the next Connect(). Err() forwards only one error, the error can come from the ethereum subscription or from
 // trying to pull the block data. If Close() is called, and there were no prior errors, it will also forward a ErrShutdown
 // to signal that the instance has exited due to shutdown. This error can be safely ignored.
 type Client struct {
