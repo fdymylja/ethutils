@@ -214,7 +214,7 @@ func TestStoppableStreamer_Close2(t *testing.T) {
 	producer.streamer = streamer
 	wg := sync.WaitGroup{}
 	wg.Add(10000)
-	block := testblocks.Block6550146.MustDecode()
+	block := testblocks.Block6551046.MustDecode()
 	start := time.Now()
 	for i := 0; i < 10000; i++ {
 		go func() {

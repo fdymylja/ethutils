@@ -18,7 +18,7 @@ func TestNewTransaction(t *testing.T) {
 }
 
 func TestTransaction_Transaction(t *testing.T) {
-	testBlock := testblocks.Block6550147.MustDecode()
+	testBlock := testblocks.Block6551046.MustDecode()
 	testTx := testBlock.Transactions()[0]
 	testHash := testTx.Hash()
 	streamer := mocks.NewStreamer()
@@ -43,7 +43,7 @@ func TestTransaction_Transaction(t *testing.T) {
 }
 
 func TestTransaction_Wait(t *testing.T) {
-	testBlock := testblocks.Block6550147.MustDecode()
+	testBlock := testblocks.Block6551046.MustDecode()
 	testTx := testBlock.Transactions()[0]
 	testHash := testTx.Hash()
 	streamer := mocks.NewStreamer()
@@ -77,7 +77,7 @@ func TestTransaction_Wait(t *testing.T) {
 
 // Cover wait block approval
 func TestTransaction_Wait2(t *testing.T) {
-	testBlock := testblocks.Block6550147.MustDecode()
+	testBlock := testblocks.Block6551046.MustDecode()
 	testTx := testBlock.Transactions()[0]
 	testHash := testTx.Hash()
 	streamer := mocks.NewStreamer()
@@ -97,8 +97,8 @@ func TestTransaction_Wait2(t *testing.T) {
 	case <-time.After(1 * time.Second): // pass
 	}
 	// send block that deems the transaction finalized
-	streamer.SendHeader(testblocks.Block6550149.MustDecode().Header())
-	streamer.SendBlock(testblocks.Block6550151.MustDecode())
+	streamer.SendHeader(testblocks.Block6551046.MustDecode().Header())
+	streamer.SendBlock(testblocks.Block6551050.MustDecode())
 	select {
 	case tx := <-txListener.Transaction():
 		if tx.Transaction.Hash() != testHash {

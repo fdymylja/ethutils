@@ -3,6 +3,7 @@ package nodeop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
@@ -42,15 +43,19 @@ func DownloadBlocksByRange(ctx context.Context, client interfaces.BlockPuller, b
 	return
 }
 
-/*
-// DownloadBlocksByRangeConcurrently
-func DownloadBlocksByRangeConcurrently(ctx context.Context, client interfaces.BlockPuller, blockStart, blockFinish uint64, workers int) (resp <-chan *types.Block, errs chan error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	resp = make(chan *types.Block)
-	for ; blockStart <= blockFinish; blockStart++ {
-
-	}
-	return
+func DownloadBlocksCnc(ctx context.Context, client interfaces.BlockPuller, blockStart, blockFinish uint64) (<-chan *types.Block, <-chan error) {
+	c := make(chan *types.Block, blockFinish-blockStart+1)
+	errs := make(chan error, 1)
+	go func() {
+		defer close(c)
+		for ; blockStart <= blockFinish; blockStart++ {
+			b, err := DownloadBlockByNumber(ctx, client, blockStart)
+			if err != nil {
+				errs <- fmt.Errorf("DownloadBlocksCnc: %w", err)
+				return
+			}
+			c <- b // send block
+		}
+	}()
+	return c, errs
 }
-*/

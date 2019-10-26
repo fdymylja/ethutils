@@ -4,30 +4,26 @@ import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/fdymylja/ethutils/interfaces"
+	"github.com/fdymylja/ethutils/mocks"
 	"testing"
 )
 
-func testEthClient() *ethclient.Client {
-	endpoint := "wss://ropsten.infura.io/ws"
-	client, err := ethclient.Dial(endpoint)
-	if err != nil {
-		panic(err)
-	}
-	return client
+func testEthClient() interfaces.Node {
+	node := mocks.NewNode()
+	return node
 }
 
 func TestDownloadBlockByNumber(t *testing.T) {
 	c := testEthClient()
-	b, err := DownloadBlockByNumber(context.Background(), c, 10)
+	_, err := DownloadBlockByNumber(context.Background(), c, 6551046)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(hexutil.Encode(b.Hash().Bytes()))
 }
 
 func TestDownloadBlock(t *testing.T) {
-	testHash := "0xb3074f936815a0425e674890d7db7b5e94f3a06dca5b22d291b55dcd02dde93e"
+	testHash := "0x952857460567205f35cc7d25b8d7782c5e335c3126271384c930d75224e7bc92"
 	c := testEthClient()
 	_, err := DownloadBlock(context.Background(), c, common.BytesToHash(hexutil.MustDecode(testHash)))
 	if err != nil {
@@ -37,7 +33,7 @@ func TestDownloadBlock(t *testing.T) {
 
 func TestDownloadRangeByNumberRange(t *testing.T) {
 	c := testEthClient()
-	var start uint64
+	var start uint64 = 6551046
 	var downloadNumb uint64 = 10
 	blocks, err := DownloadBlocksByRange(context.Background(), c, start, start+downloadNumb)
 	if err != nil {
@@ -47,6 +43,22 @@ func TestDownloadRangeByNumberRange(t *testing.T) {
 		if block.Number().Uint64() != start+uint64(i) {
 			t.Fatalf("block number mismatch: expected: %d got: %d", block.Number().Uint64(), start+uint64(i))
 		}
-		t.Log(block.NumberU64())
+	}
+}
+
+func TestDownloadBlocksCnc(t *testing.T) {
+	c := testEthClient()
+	var start uint64 = 6551046
+	var downloadNumb uint64 = 10
+	blocks, errs := DownloadBlocksCnc(context.Background(), c, start, start+downloadNumb)
+	for {
+		select {
+		case _, ok := <-blocks:
+			if !ok {
+				return
+			}
+		case err := <-errs:
+			t.Fatal(err)
+		}
 	}
 }

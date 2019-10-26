@@ -12,7 +12,7 @@ import (
 
 func TestBlock_Block(t *testing.T) {
 	streamer := mocks.NewStreamer()
-	mockBlock := testblocks.Block6550147.MustDecode()
+	mockBlock := testblocks.Block6551046.MustDecode()
 	blockListener := NewBlock(streamer, mockBlock.NumberU64())
 	streamer.SendBlock(mockBlock)
 	select {
@@ -46,7 +46,7 @@ func TestBlock_Close(t *testing.T) {
 // Covers the working Wait case, also covers the WaitContext case because Wait uses WaitContext
 func TestBlock_Wait(t *testing.T) {
 	streamer := mocks.NewStreamer()
-	mockBlock := testblocks.Block6550147.MustDecode()
+	mockBlock := testblocks.Block6551046.MustDecode()
 	blockListener := NewBlock(streamer, mockBlock.NumberU64())
 	streamer.SendBlock(mockBlock)
 	block, err := blockListener.Wait()
@@ -60,7 +60,7 @@ func TestBlock_Wait(t *testing.T) {
 
 func TestBlock_WaitContext(t *testing.T) {
 	streamer := mocks.NewStreamer()
-	mockBlock := testblocks.Block6550147.MustDecode()
+	mockBlock := testblocks.Block6551046.MustDecode()
 	blockListener := NewBlock(streamer, mockBlock.NumberU64())
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -76,7 +76,7 @@ func TestBlock_WaitContext(t *testing.T) {
 // Cover the case in which the streamer forwards errors
 func TestBlock_Wait2(t *testing.T) {
 	streamer := mocks.NewStreamer()
-	mockBlock := testblocks.Block6550147.MustDecode()
+	mockBlock := testblocks.Block6551046.MustDecode()
 	blockListener := NewBlock(streamer, mockBlock.NumberU64())
 	testErr := errors.New("test error")
 	streamer.SendError(testErr)

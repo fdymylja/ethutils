@@ -6,11 +6,13 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/fdymylja/ethutils/mocks/testblocks"
 	"github.com/fdymylja/ethutils/status"
 	"math/big"
 	"sync"
 )
 
+// Node mocks a interfaces.Node
 type Node struct {
 	mu sync.Mutex
 
@@ -23,6 +25,25 @@ type Node struct {
 	activeRoutines sync.WaitGroup
 }
 
+// NewNode generates a new instance of Node
+func NewNode() *Node {
+	blocks := testblocks.BlocksSlice.MustDecode()
+	rng := ring.New(len(blocks))
+	for _, block := range blocks {
+		rng.Value = block
+		rng = rng.Next()
+	}
+	return &Node{
+		mu:             sync.Mutex{},
+		closed:         false,
+		shutdown:       make(chan struct{}),
+		blocks:         blocks,
+		blockRing:      rng,
+		activeRoutines: sync.WaitGroup{},
+	}
+}
+
+// Subscription mocks an ethereum.Subscription
 type Subscription struct {
 	err          chan error
 	closeErrOnce sync.Once
@@ -30,6 +51,7 @@ type Subscription struct {
 	shutdown     chan struct{}
 }
 
+// Unsubscribe closes the subscription
 func (s *Subscription) Unsubscribe() {
 	s.shutdownOnce.Do(func() {
 		close(s.shutdown)
@@ -92,7 +114,7 @@ func (n *Node) SubscribeNewHead(ctx context.Context, headers chan<- *types.Heade
 	n.activeRoutines.Add(1)
 	go func() {
 		defer n.activeRoutines.Done() // when the goroutine exits signal it to the wait group
-		// if there are no blocks, return
+		// if there are no blocks, PANEEC
 		if n.blockRing.Len() == 0 {
 			panic("no block is loaded")
 		}
