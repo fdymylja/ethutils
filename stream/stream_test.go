@@ -88,14 +88,18 @@ func TestClient_Close(t *testing.T) {
 
 // test block
 func TestClient_Block(t *testing.T) {
+	options := &Options{
+		NodeOpTimeout:      0,
+		MaxRetries:         1,
+		RetryWait:          0,
+		WaitAfterHeader:    0,
+		StreamBlocks:       true,
+		StreamHeaders:      false,
+		StreamTransactions: false,
+	}
 	node := mocks.NewNode()
-	c := NewClientDefault("")
+	c := NewClient("", options)
 	c.init()
-	c.connected = true
-	c.options.StreamHeaders = false
-	c.options.StreamBlocks = true
-	c.options.StreamTransactions = true
-	c.options.WaitAfterHeader = 0
 	headers := make(chan *types.Header)
 	sub, err := node.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
@@ -120,14 +124,18 @@ func TestClient_Block(t *testing.T) {
 
 // test Header
 func TestClient_Header(t *testing.T) {
+	options := &Options{
+		NodeOpTimeout:      0,
+		MaxRetries:         1,
+		RetryWait:          0,
+		WaitAfterHeader:    0,
+		StreamBlocks:       false,
+		StreamHeaders:      true,
+		StreamTransactions: false,
+	}
 	node := mocks.NewNode()
-	c := NewClientDefault("")
+	c := NewClient("", options)
 	c.init()
-	c.connected = true
-	c.options.StreamHeaders = true
-	c.options.StreamBlocks = false
-	c.options.StreamTransactions = false
-	c.options.WaitAfterHeader = 0
 	headers := make(chan *types.Header)
 	sub, err := node.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
@@ -152,14 +160,18 @@ func TestClient_Header(t *testing.T) {
 
 // test tx
 func TestClient_Transaction(t *testing.T) {
+	options := &Options{
+		NodeOpTimeout:      0,
+		MaxRetries:         1,
+		RetryWait:          0,
+		WaitAfterHeader:    0,
+		StreamBlocks:       false,
+		StreamHeaders:      false,
+		StreamTransactions: true,
+	}
 	node := mocks.NewNode()
-	c := NewClientDefault("")
+	c := NewClient("", options)
 	c.init()
-	c.connected = true
-	c.options.StreamHeaders = false
-	c.options.StreamBlocks = false
-	c.options.StreamTransactions = true
-	c.options.WaitAfterHeader = 0
 	headers := make(chan *types.Header)
 	sub, err := node.SubscribeNewHead(context.Background(), headers)
 	if err != nil {

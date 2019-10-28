@@ -11,6 +11,7 @@ type Subscription struct {
 	shutdown     chan struct{}
 }
 
+// NewSubscription is Subscription constructor
 func NewSubscription() *Subscription {
 	return &Subscription{
 		errs:         make(chan error, 1),
@@ -35,6 +36,7 @@ func (s *Subscription) Err() <-chan error {
 	return s.errs
 }
 
+// SendError forwards an error to the subscription listener
 func (s *Subscription) SendError(err error) {
 	s.sendErrOnce.Do(func() {
 		s.errs <- err

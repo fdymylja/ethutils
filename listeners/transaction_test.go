@@ -87,10 +87,6 @@ func TestTransaction_Wait2(t *testing.T) {
 		BlockNumber: testBlock.NumberU64(),
 		Timestamp:   testBlock.Time(),
 	})
-	// tx was sent and received
-	if txListener.tx == nil {
-		t.Fatal("transaction should not be nil")
-	}
 	select {
 	case <-txListener.Transaction():
 		t.Fatal("transaction should not be finalized")
