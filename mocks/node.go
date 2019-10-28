@@ -20,6 +20,8 @@ type Node struct {
 	shutdown chan struct{}
 	blocks   []*types.Block
 
+	lastSent common.Hash
+
 	blockRing *ring.Ring
 
 	activeRoutines sync.WaitGroup
@@ -41,29 +43,6 @@ func NewNode() *Node {
 		blockRing:      rng,
 		activeRoutines: sync.WaitGroup{},
 	}
-}
-
-// Subscription mocks an ethereum.Subscription
-type Subscription struct {
-	err          chan error
-	closeErrOnce sync.Once
-	shutdownOnce sync.Once
-	shutdown     chan struct{}
-}
-
-// Unsubscribe closes the subscription
-func (s *Subscription) Unsubscribe() {
-	s.shutdownOnce.Do(func() {
-		close(s.shutdown)
-		s.closeErrOnce.Do(func() {
-			close(s.err)
-		})
-	})
-}
-
-// Err returns a channel that forwards a subscription error
-func (s *Subscription) Err() <-chan error {
-	return s.err
 }
 
 // BlockByHash implements interfaces.Node
@@ -108,12 +87,7 @@ func (n *Node) SubscribeNewHead(ctx context.Context, headers chan<- *types.Heade
 		return nil, status.ErrClosed
 	}
 	// if not dead
-	mockSub := &Subscription{
-		err:          make(chan error, 1),
-		closeErrOnce: sync.Once{},
-		shutdownOnce: sync.Once{},
-		shutdown:     make(chan struct{}),
-	}
+	mockSub := NewSubscription()
 	// add one active routine
 	n.activeRoutines.Add(1)
 	go func() {
