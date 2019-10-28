@@ -74,6 +74,7 @@ var blocksSlice = "// BlocksSlice is the slice of all the blocks generated\nvar 
 
 // genblocks downloads blocks from start to final
 func main() {
+	flag.Parse()
 	if *start >= *final {
 		log.Fatal("starting block must be lower than final block")
 	}
