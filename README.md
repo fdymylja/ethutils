@@ -7,10 +7,18 @@ Stream can be used to stream block contents, headers and transactions
 
 example:
 ```go
-// ExampleStream streams recv from ropsten network, default options used
-func ExampleNewStreamDefault() {
+// ExampleClient streams recv from ropsten network, default options used
+package main
+
+import (
+    "github.com/fdymylja/ethutils/stream"
+    "log"
+    "time"
+)
+
+func main() {
 	// init Streamer
-	streamer := broadcast.NewStreamDefault("wss://ropsten.infura.io/ws/v3/38c930aee8474fbea8f3b33689faf8c9")
+	streamer := stream.NewClientDefault("wss://ropsten.infura.io/ws")
 	// connect it
 	err := streamer.Connect()
 	if err != nil {

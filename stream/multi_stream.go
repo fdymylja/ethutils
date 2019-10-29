@@ -1,11 +1,35 @@
 package stream
 
 import (
+	"errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
 	"github.com/fdymylja/ethutils/status"
 	"sync"
 )
+
+// ErrMaximumTransactionQueueSizeReached is called when the maximum number of queued transactions is reached
+var ErrMaximumTransactionQueueSizeReached = errors.New("maximum transaction queue size has been reached")
+
+// ErrMaximumHeadersQueueSizeReached is called when the maximum number of queued transactions is reached
+var ErrMaximumHeadersQueueSizeReached = errors.New("maximum headers queue size has been reached")
+
+// ErrMaximumBlocksQueueSizeReached is called when the maximum number of queued blocks is reached
+var ErrMaximumBlocksQueueSizeReached = errors.New("maximum blocks queue size has been reached")
+
+// MultiStreamOptions defines settings for MultiStream
+type MultiStreamOptions struct {
+	MaxBlocksQueueSize       int // MaxBlocksQueueSize defines the maximum number of blocks allowed in the queue of each MultiStream children
+	MaxTransactionsQueueSize int // MaxTransactionsQueueSize defines the maximum number of transactions in the queue of each MultiStream children
+	MaxHeadersQueueSize      int // MaxHeadersQueueSize defines the maximum number of headers in the queue MultiStream children
+}
+
+// DefaultMultiStreamOptions defines the default options for MultiStream
+var DefaultMultiStreamOptions = &MultiStreamOptions{
+	MaxBlocksQueueSize:       100,
+	MaxTransactionsQueueSize: 1000,
+	MaxHeadersQueueSize:      200,
+}
 
 // msChildIF defines the unexported behaviour of a listener used internally by MultiStream
 // all operations should be non-blocking to avoid stalling the loop function forever, which is
@@ -19,9 +43,10 @@ type msChildIF interface {
 }
 
 // MultiStream fans out data coming from a type that implements interfaces.Streamer to more listeners
-// listeners can be generated using NewListener() function, the children listeners implement interfaces.Streamer
+// listeners can be generated using NewChildren() function, the children listeners implement interfaces.Streamer
 // in case an error is received from the internal streamer this error is forwarded to all children
 type MultiStream struct {
+	options     *MultiStreamOptions    // options defines the MultiStream settings for the children
 	streamer    interfaces.Streamer    // streamer is the client that forwards new information to MultiStream
 	mu          sync.Mutex             // mu is used for sync purposes
 	closed      bool                   // closed is to stop operations in case MultiStream is not active
@@ -42,8 +67,13 @@ func (s *MultiStream) removeListener(childIF msChildIF) {
 }
 
 // NewMultiStream generates a new MultiStream instance based on a Streamer
-func NewMultiStream(streamer interfaces.Streamer) *MultiStream {
+func NewMultiStream(streamer interfaces.Streamer, options ...*MultiStreamOptions) *MultiStream {
+	option := DefaultMultiStreamOptions
+	if len(options) > 0 && options[0] != nil {
+		option = options[0]
+	}
 	m := &MultiStream{
+		options:       option,
 		streamer:      streamer,
 		mu:            sync.Mutex{},
 		closed:        false,
@@ -154,7 +184,10 @@ func (s *MultiStream) cleanup() {
 	close(s.cleanupDone)
 }
 
-func (s *MultiStream) NewListener() (interfaces.Streamer, error) {
+// NewChildren generates a new multiStreamChildren, returning it in the form of interfaces.Streamer, said children
+// behaves as a normal interfaces.Streamer, it will quit in case MultiStream is closed or has received an error from the
+// underlying streamer.
+func (s *MultiStream) NewChildren() (interfaces.Streamer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// check if closed

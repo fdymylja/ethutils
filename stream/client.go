@@ -23,7 +23,7 @@ var DefaultStreamOptions = &Options{
 	StreamTransactions: true,
 }
 
-// Options represents the parameters used
+// Options represents the options used for Client
 type Options struct {
 	// NodeOpTimeout is the timeout for node query operations
 	NodeOpTimeout time.Duration
@@ -41,6 +41,7 @@ type Options struct {
 	StreamTransactions bool
 }
 
+// NewClient generates a new Client instance taking the node endpoint and the options
 func NewClient(endpoint string, options *Options) *Client {
 	return &Client{
 		mu:       new(sync.Mutex),
@@ -49,13 +50,14 @@ func NewClient(endpoint string, options *Options) *Client {
 	}
 }
 
+// NewClientDefault returns a client taking an endpoint and the default options
 func NewClientDefault(endpoint string) *Client {
 	return NewClient(endpoint, DefaultStreamOptions)
 }
 
 // Client is an ethereum events streamer, it connects to an ethereum node and pulls information regarding headers,
 // transactions or entire blocks too. It is concurrency safe and can be used multiple times as long as Close() is called
-// before the next Connect(). It forwards only one error, the error can come from the ethereum subscription or from
+// before the next Connect(). Err() forwards only one error, the error can come from the ethereum subscription or from
 // trying to pull the block data. If Close() is called, and there were no prior errors, it will also forward a ErrShutdown
 // to signal that the instance has exited due to shutdown. This error can be safely ignored.
 type Client struct {
@@ -174,6 +176,7 @@ func (c *Client) onHeader(header *types.Header) (err error) {
 	}
 	// check if instance has to stream blocks
 	if c.options.StreamBlocks {
+		// if true, stream blocks
 		select {
 		case <-c.shutdown:
 			return
@@ -182,6 +185,7 @@ func (c *Client) onHeader(header *types.Header) (err error) {
 	}
 	// check if instance has to stream transactions
 	if c.options.StreamTransactions {
+		// if true, stream transactions
 		for _, tx := range block.Transactions() {
 			select {
 			case <-c.shutdown:
@@ -253,7 +257,7 @@ func (c *Client) Close() error {
 	<-c.loopExit
 	// close ethereum client
 	c.client.Close()
-	// send shutdown error to parent
+	// send shutdown error to listener
 	c.sendError(status.ErrShutdown)
 	// set closed to false
 	c.connected = false
@@ -291,4 +295,9 @@ type ErrDownloadBlock struct {
 // Error implements error interface
 func (e *ErrDownloadBlock) Error() string {
 	return fmt.Sprintf("failure in pulling block %d: %s", e.BlockNumber, e.Err)
+}
+
+// Unwrap implements errors.Unwrapper
+func (e *ErrDownloadBlock) Unwrap() error {
+	return e.Err
 }

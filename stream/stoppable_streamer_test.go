@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/fdymylja/ethutils/interfaces"
+	"github.com/fdymylja/ethutils/mocks/testblocks"
 	"github.com/fdymylja/ethutils/status"
 	"sync"
 	"testing"
@@ -14,7 +15,7 @@ import (
 
 type mockStoppableStreamer struct {
 	removed  bool
-	streamer *stoppableStreamer
+	streamer *multiStreamChildren
 }
 
 func (m *mockStoppableStreamer) removeListener(childIF msChildIF) {
@@ -114,6 +115,7 @@ func TestStoppableStreamer_Header(t *testing.T) {
 	}
 }
 
+// Cover simple tx send
 func TestStoppableStreamer_Transaction(t *testing.T) {
 	producer := newMockStoppableStreamer()
 	streamer := newStoppableStreamer(producer)
@@ -133,20 +135,97 @@ func TestStoppableStreamer_Transaction(t *testing.T) {
 	}
 }
 
+// Cover tx send with queue
+func TestStoppableStreamer_Transaction2(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	producer.streamer = streamer
+	producer.sendTx(&interfaces.TxWithBlock{
+		Transaction: nil,
+		BlockNumber: 1,
+		Timestamp:   1,
+	})
+	producer.sendTx(&interfaces.TxWithBlock{
+		Transaction: nil,
+		BlockNumber: 2,
+		Timestamp:   1,
+	})
+	select {
+	case tx := <-streamer.Transaction():
+		if tx.BlockNumber != 1 {
+			t.Fatal("wrong block forwarded")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("transaction send timeout")
+	}
+	select {
+	case tx := <-streamer.Transaction():
+		if tx.BlockNumber != 2 {
+			t.Fatal("wrong block forwarded")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("transaction send timeout")
+	}
+}
+
+// Cover empty queue then go back to first select, we test this only for Transaction since the logic is the same for all
+// other listenAndSend functions
+func TestStoppableStreamer_Transaction3(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	producer.streamer = streamer
+	producer.sendTx(&interfaces.TxWithBlock{
+		Transaction: nil,
+		BlockNumber: 1,
+		Timestamp:   1,
+	})
+	select {
+	case tx := <-streamer.Transaction():
+		if tx.BlockNumber != 1 {
+			t.Fatal("wrong block forwarded")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("transaction send timeout")
+	}
+	producer.sendTx(&interfaces.TxWithBlock{
+		Transaction: nil,
+		BlockNumber: 2,
+		Timestamp:   1,
+	})
+	select {
+	case tx := <-streamer.Transaction():
+		if tx.BlockNumber != 2 {
+			t.Fatal("wrong block forwarded")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("transaction send timeout")
+	}
+}
+
 // Cover the case in which the Streamer is stopped while there are send ops
 func TestStoppableStreamer_Close2(t *testing.T) {
 	producer := newMockStoppableStreamer()
 	streamer := newStoppableStreamer(producer)
+	streamer.options = &MultiStreamOptions{
+		MaxBlocksQueueSize:       100000,
+		MaxTransactionsQueueSize: 100000,
+		MaxHeadersQueueSize:      100000,
+	}
 	producer.streamer = streamer
 	wg := sync.WaitGroup{}
 	wg.Add(10000)
+	block := testblocks.Block6551046.MustDecode()
 	start := time.Now()
 	for i := 0; i < 10000; i++ {
 		go func() {
 			defer wg.Done()
-			producer.sendTx(nil)
-			producer.sendHeader(nil)
-			producer.sendBlock(nil)
+			producer.sendTx(&interfaces.TxWithBlock{
+				Transaction: block.Transactions()[0],
+				BlockNumber: block.NumberU64(),
+				Timestamp:   block.Time(),
+			})
+			producer.sendHeader(block.Header())
+			producer.sendBlock(block)
 		}()
 	}
 	wg.Wait()
@@ -192,5 +271,71 @@ func TestStoppableStreamer_Close2(t *testing.T) {
 	case <-done:
 	case <-time.After(1 * time.Second):
 		panic("ops are blocking")
+	}
+}
+
+// cover max queue size reached
+func TestStoppableStreamer_ErrMaxQueueTx(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	streamer.options = &MultiStreamOptions{
+		MaxBlocksQueueSize: 0,
+	}
+	producer.streamer = streamer
+	producer.sendTx(nil)
+	select {
+	case err := <-streamer.Err():
+		if !errors.Is(err, ErrMaximumTransactionQueueSizeReached) {
+			t.Fatalf("unexpected error: %s", err)
+		}
+	case <-streamer.Transaction():
+		t.Fatal("unexpected transaction")
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout")
+	}
+}
+
+func TestStoppableStreamer_ErrMaxQueueHeaders(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	streamer.options = &MultiStreamOptions{
+		MaxBlocksQueueSize:       -1,
+		MaxTransactionsQueueSize: -1,
+		MaxHeadersQueueSize:      -1,
+	}
+	producer.streamer = streamer
+	producer.sendHeader(nil)
+	select {
+	case err := <-streamer.Err():
+		if !errors.Is(err, ErrMaximumHeadersQueueSizeReached) {
+			t.Fatalf("unexpected error: %s", err)
+		}
+	case <-streamer.Header():
+		t.Fatal("unexpected header")
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout")
+	}
+
+}
+
+func TestStoppableStreamer_ErrMaxQueueBlocks(t *testing.T) {
+	producer := newMockStoppableStreamer()
+	streamer := newStoppableStreamer(producer)
+	streamer.options = &MultiStreamOptions{
+		MaxBlocksQueueSize:       -1,
+		MaxTransactionsQueueSize: -1,
+		MaxHeadersQueueSize:      -1,
+	}
+	producer.streamer = streamer
+	producer.sendBlock(nil)
+	select {
+	case err := <-streamer.Err():
+		if !errors.Is(err, ErrMaximumBlocksQueueSizeReached) {
+			t.Fatalf("unexpected error: %s", err)
+		}
+	case <-streamer.Block():
+		t.Fatal("unexpected block")
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout")
 	}
 }
