@@ -1,8 +1,8 @@
 # ethutils
-ethutils is a library that implements a series of ethereum utilities
+ethutils is a library that implements a series of ethereum utilities (readme needs to be updated but code is documented)
 
-###broadcast
-####Stream 
+#broadcast
+#Stream 
 Stream can be used to stream block contents, headers and transactions
 
 example:
